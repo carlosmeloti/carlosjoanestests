@@ -28,7 +28,7 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel VerticalAlignment="Center" Margin="0,0,40,0">
-                    <TextBlock Text="ACAIPOS" FontFamily="{StaticResource FontDisplay}" FontSize="64" FontWeight="Bold"
+                    <TextBlock Text="AÇAI PDV" FontFamily="{StaticResource FontDisplay}" FontSize="64" FontWeight="Bold"
                                Foreground="{StaticResource BrushTextPrimary}"/>
                     <TextBlock Text="PDV touch-first para operação rápida de caixa"
                                Style="{StaticResource MutedText}" FontSize="18" Margin="0,12,0,0" TextWrapping="Wrap"/>
@@ -279,7 +279,7 @@
             </Grid>
 
             <!-- Catalog management -->
-            <Grid Grid.Row="1" Margin="16" Visibility="{Binding CatalogScreenVisibility}" DataContext="{Binding Catalog}">
+            <Grid Grid.Row="1" Margin="16" Visibility="{Binding DataContext.CatalogScreenVisibility, RelativeSource={RelativeSource AncestorType={x:Type Window}}}" DataContext="{Binding Catalog}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
@@ -486,7 +486,7 @@
             </Grid>
 
             <!-- Users management -->
-            <Grid Grid.Row="1" Margin="16" Visibility="{Binding UsersScreenVisibility}" DataContext="{Binding Users}">
+            <Grid Grid.Row="1" Margin="16"  DataContext="{Binding Users}" Visibility="{Binding DataContext.UsersScreenVisibility, RelativeSource={RelativeSource AncestorType={x:Type Window}}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="1.4*"/>
                     <ColumnDefinition Width="0.9*"/>
@@ -558,7 +558,7 @@
             </Grid>
 
             <!-- Sales history -->
-            <Grid Grid.Row="1" Margin="16" Visibility="{Binding HistoryScreenVisibility}" DataContext="{Binding History}">
+            <Grid Grid.Row="1" Margin="16" DataContext="{Binding History}" Visibility="{Binding DataContext.HistoryScreenVisibility, RelativeSource={RelativeSource AncestorType={x:Type Window}}}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
@@ -769,7 +769,7 @@
                             <TextBlock Text="Pagamento" Style="{StaticResource TitleText}" FontSize="28"/>
                             <TextBlock Text="{Binding PayableTotalLabel}" FontFamily="{StaticResource FontDisplay}" FontSize="40" Foreground="{StaticResource BrushAccent}" Margin="0,8,0,4"/>
                             <TextBlock Style="{StaticResource MutedText}" Margin="0,0,0,12">
-                                <Run Text="Pago: "/><Run Text="{Binding PaymentPaidLabel}"/><Run Text=" · Restante: "/><Run Text="{Binding PaymentRemainingLabel}"/>
+                                <Run Text="Pago: "/><Run Text="{Binding PaymentPaidLabel, Mode=OneWay}"/><Run Text=" · Restante: "/><Run Text="{Binding PaymentRemainingLabel, Mode=OneWay}"/>
                             </TextBlock>
 
                             <TextBlock Text="Desconto" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
