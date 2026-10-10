@@ -761,34 +761,64 @@
             </Border>
 
             <!-- Payment overlay -->
-            <Border Background="#CC0F1419" Visibility="{Binding PaymentPanelVisibility}">
+            <Border Grid.Row="0" Grid.RowSpan="3" Panel.ZIndex="30" Background="#CC0F1419" Visibility="{Binding PaymentPanelVisibility}">
                 <Border Background="{StaticResource BrushBgPanel}" CornerRadius="24" Padding="28" Width="640" MaxHeight="820"
                         HorizontalAlignment="Center" VerticalAlignment="Center">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
-                            <TextBlock Text="Pagamento" Style="{StaticResource TitleText}" FontSize="28"/>
+                            <Grid>
+                                <TextBlock Text="Pagamento" Style="{StaticResource TitleText}" FontSize="28" VerticalAlignment="Center"/>
+                                <Button Content="✕" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                        Style="{StaticResource GhostTouchButton}" Padding="14,8" Margin="0"
+                                        ToolTip="Fechar"
+                                        Command="{Binding CancelPaymentCommand}"/>
+                            </Grid>
                             <TextBlock Text="{Binding PayableTotalLabel}" FontFamily="{StaticResource FontDisplay}" FontSize="40" Foreground="{StaticResource BrushAccent}" Margin="0,8,0,4"/>
                             <TextBlock Style="{StaticResource MutedText}" Margin="0,0,0,12">
                                 <Run Text="Pago: "/><Run Text="{Binding PaymentPaidLabel, Mode=OneWay}"/><Run Text=" · Restante: "/><Run Text="{Binding PaymentRemainingLabel, Mode=OneWay}"/>
                             </TextBlock>
 
                             <TextBlock Text="Desconto" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
-                            <TextBox Text="{Binding DiscountAmount, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Style="{StaticResource FieldTextBox}"/>
+                            <TextBox Text="{Binding DiscountAmountText, UpdateSourceTrigger=LostFocus}" Style="{StaticResource FieldTextBox}"/>
 
                             <StackPanel Visibility="{Binding DiscountAuthVisibility}" Margin="0,10,0,0">
-                                <TextBlock Text="Autorização de desconto (gerente/admin)" Foreground="{StaticResource BrushWarning}" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                                <TextBlock Text="Autorização de desconto (gerente ou administrador)" Foreground="{StaticResource BrushWarning}" FontWeight="SemiBold" Margin="0,0,0,8" TextWrapping="Wrap"/>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBox Text="{Binding DiscountAuthorizerUsername, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}" Margin="0,0,6,0"/>
-                                    <TextBox Grid.Column="1" Text="{Binding DiscountAuthorizerPin, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}" Margin="6,0,0,0"/>
+                                    <StackPanel Margin="0,0,6,0">
+                                        <TextBlock Text="Usuário" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                        <TextBox Text="{Binding DiscountAuthorizerUsername, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource FieldTextBox}"
+                                                 LostFocus="DiscountAuthorizerField_LostFocus"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="6,0,0,0">
+                                        <TextBlock Text="PIN" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                        <TextBox Text="{Binding DiscountAuthorizerPin, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource FieldTextBox}"
+                                                 LostFocus="DiscountAuthorizerField_LostFocus"/>
+                                    </StackPanel>
                                 </Grid>
+                                <Button Content="Autorizar desconto" Style="{StaticResource PrimaryTouchButton}" Height="52" Margin="0,12,0,0"
+                                        Command="{Binding AuthorizeDiscountCommand}"/>
+                                <TextBlock Text="{Binding DiscountAuthMessage}" Margin="0,8,0,0" TextWrapping="Wrap" FontSize="14">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource BrushWarning}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding DiscountAuthorized}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource BrushSuccess}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                             </StackPanel>
 
                             <TextBlock Text="Valor desta parcela" Style="{StaticResource MutedText}" Margin="0,14,0,6"/>
-                            <TextBox Text="{Binding PartialPaymentAmount, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Style="{StaticResource FieldTextBox}"/>
+                            <TextBox Text="{Binding PartialPaymentAmountText, UpdateSourceTrigger=LostFocus}" Style="{StaticResource FieldTextBox}"/>
 
                             <UniformGrid Columns="2" Margin="0,12,0,0">
                                 <Button Content="PIX (parcela)" Style="{StaticResource SuccessTouchButton}" Height="56"
@@ -809,7 +839,7 @@
                             </UniformGrid>
 
                             <TextBlock Text="Valor recebido (dinheiro)" Style="{StaticResource MutedText}" Margin="0,14,0,6"/>
-                            <TextBox Text="{Binding CashReceived, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Style="{StaticResource FieldTextBox}"/>
+                            <TextBox Text="{Binding CashReceivedText, UpdateSourceTrigger=LostFocus}" Style="{StaticResource FieldTextBox}"/>
                             <TextBlock Text="{Binding CashChangeLabel}" Foreground="{StaticResource BrushWarning}" FontSize="16" FontWeight="SemiBold" Margin="0,8,0,0"/>
 
                             <ItemsControl ItemsSource="{Binding PaymentLines}" Margin="0,14,0,0">
@@ -821,9 +851,9 @@
                                                         Command="{Binding DataContext.RemovePaymentLineCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                         CommandParameter="{Binding}"/>
                                                 <TextBlock Foreground="{StaticResource BrushTextPrimary}" VerticalAlignment="Center">
-                                                    <Run Text="{Binding MethodLabel}"/>
+                                                    <Run Text="{Binding MethodLabel, Mode=OneWay}"/>
                                                     <Run Text=" · "/>
-                                                    <Run Text="{Binding AmountLabel}"/>
+                                                    <Run Text="{Binding AmountLabel, Mode=OneWay}"/>
                                                 </TextBlock>
                                             </DockPanel>
                                         </Border>
@@ -835,9 +865,11 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <Button Content="Cancelar" Style="{StaticResource GhostTouchButton}" Height="56" Command="{Binding CancelPaymentCommand}"/>
-                                <Button Grid.Column="1" Content="Concluir venda" Style="{StaticResource PrimaryTouchButton}" Height="56"
+                                <Button Content="Limpar" Style="{StaticResource GhostTouchButton}" Height="56" Command="{Binding ResetPaymentCommand}"/>
+                                <Button Grid.Column="1" Content="Cancelar" Style="{StaticResource GhostTouchButton}" Height="56" Command="{Binding CancelPaymentCommand}"/>
+                                <Button Grid.Column="2" Content="Concluir venda" Style="{StaticResource PrimaryTouchButton}" Height="56"
                                         Command="{Binding CompleteMixedPaymentCommand}"/>
                             </Grid>
                         </StackPanel>
@@ -846,7 +878,7 @@
             </Border>
 
             <!-- Open cash panel -->
-            <Border Background="#CC0F1419" Visibility="{Binding ShowCashOpenPanel, Converter={StaticResource BoolToVis}}">
+            <Border Grid.Row="0" Grid.RowSpan="3" Panel.ZIndex="30" Background="#CC0F1419" Visibility="{Binding ShowCashOpenPanel, Converter={StaticResource BoolToVis}}">
                 <Border Background="{StaticResource BrushBgPanel}" CornerRadius="24" Padding="28" Width="480" HorizontalAlignment="Center" VerticalAlignment="Center">
                     <StackPanel>
                         <TextBlock Text="Abrir caixa" Style="{StaticResource TitleText}" FontSize="28"/>
@@ -858,7 +890,7 @@
             </Border>
 
             <!-- Close cash panel -->
-            <Border Background="#CC0F1419" Visibility="{Binding ShowCashClosePanel, Converter={StaticResource BoolToVis}}">
+            <Border Grid.Row="0" Grid.RowSpan="3" Panel.ZIndex="30" Background="#CC0F1419" Visibility="{Binding ShowCashClosePanel, Converter={StaticResource BoolToVis}}">
                 <Border Background="{StaticResource BrushBgPanel}" CornerRadius="24" Padding="28" Width="520" HorizontalAlignment="Center" VerticalAlignment="Center">
                     <StackPanel>
                         <TextBlock Text="Fechar caixa" Style="{StaticResource TitleText}" FontSize="28"/>
@@ -878,7 +910,7 @@
             </Border>
 
             <!-- Sangria / Suprimento -->
-            <Border Background="#CC0F1419" Visibility="{Binding ShowCashMovementPanel, Converter={StaticResource BoolToVis}}">
+            <Border Grid.Row="0" Grid.RowSpan="3" Panel.ZIndex="30" Background="#CC0F1419" Visibility="{Binding ShowCashMovementPanel, Converter={StaticResource BoolToVis}}">
                 <Border Background="{StaticResource BrushBgPanel}" CornerRadius="24" Padding="28" Width="640" MaxHeight="720"
                         HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Grid>
@@ -954,7 +986,7 @@
             </Border>
 
             <!-- Ticket preview -->
-            <Border Background="#CC0F1419" Visibility="{Binding ShowTicketPanel, Converter={StaticResource BoolToVis}}">
+            <Border Grid.Row="0" Grid.RowSpan="3" Panel.ZIndex="30" Background="#CC0F1419" Visibility="{Binding ShowTicketPanel, Converter={StaticResource BoolToVis}}">
                 <Border Background="{StaticResource BrushBgPanel}" CornerRadius="24" Padding="24" Width="520" MaxHeight="780"
                         HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Grid>
@@ -993,7 +1025,7 @@
             </Border>
 
             <!-- Reprint list -->
-            <Border Background="#CC0F1419" Visibility="{Binding ShowReprintPanel, Converter={StaticResource BoolToVis}}">
+            <Border Grid.Row="0" Grid.RowSpan="3" Panel.ZIndex="30" Background="#CC0F1419" Visibility="{Binding ShowReprintPanel, Converter={StaticResource BoolToVis}}">
                 <Border Background="{StaticResource BrushBgPanel}" CornerRadius="24" Padding="24" Width="720" MaxHeight="780"
                         HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Grid>

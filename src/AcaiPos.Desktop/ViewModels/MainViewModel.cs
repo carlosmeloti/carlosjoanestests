@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Windows;
 using AcaiPos.Application.Abstractions;
 using AcaiPos.Application.Models;
@@ -72,6 +73,8 @@ public sealed class MainViewModel : ObservableObject
     private decimal _discountAmount;
     private string _discountAuthorizerUsername = "gerente";
     private string _discountAuthorizerPin = string.Empty;
+    private bool _discountAuthorized;
+    private string _discountAuthMessage = "Informe usuário e PIN do gerente ou administrador.";
     private PaymentMethod _selectedPaymentMethod = PaymentMethod.Pix;
     private string _lastTicketInfo = string.Empty;
     private bool _showCashOpenPanel;
@@ -148,11 +151,13 @@ public sealed class MainViewModel : ObservableObject
         SearchOrBarcodeCommand = new RelayCommand(async _ => await SearchOrBarcodeAsync());
         StartPaymentCommand = new RelayCommand(_ => StartPayment(), _ => IsCashOpen && Cart.Count > 0);
         CancelPaymentCommand = new RelayCommand(_ => CancelPaymentPanel());
-        PayFullCommand = new RelayCommand(async p => await AddPaymentAsync(p, payRemaining: true), _ => Cart.Count > 0);
-        AddPartialPaymentCommand = new RelayCommand(async p => await AddPaymentAsync(p, payRemaining: false), _ => Cart.Count > 0);
-        ConfirmCashPaymentCommand = new RelayCommand(async _ => await AddPaymentAsync("Cash", payRemaining: false), _ => Cart.Count > 0);
+        ResetPaymentCommand = new RelayCommand(_ => ResetPaymentEdits());
+        AuthorizeDiscountCommand = new RelayCommand(_ => AuthorizeDiscount());
+        PayFullCommand = new RelayCommand(async p => await AddPaymentAsync(p, payRemaining: true), _ => CanAcceptPayment());
+        AddPartialPaymentCommand = new RelayCommand(async p => await AddPaymentAsync(p, payRemaining: false), _ => CanAcceptPayment());
+        ConfirmCashPaymentCommand = new RelayCommand(async _ => await AddPaymentAsync("Cash", payRemaining: false), _ => CanAcceptPayment());
         RemovePaymentLineCommand = new RelayCommand(p => RemovePaymentLine(p as PaymentLineViewModel));
-        CompleteMixedPaymentCommand = new RelayCommand(async _ => await CompleteSaleAsync(PaymentLines.Select(ToDraft).ToList()), _ => PaymentRemaining <= 0.009m && PaymentLines.Count > 0);
+        CompleteMixedPaymentCommand = new RelayCommand(async _ => await CompleteSaleAsync(PaymentLines.Select(ToDraft).ToList()), _ => PaymentRemaining <= 0.009m && PaymentLines.Count > 0 && IsDiscountClearedForPayment);
         AppendPinCommand = new RelayCommand(p => AppendPin(p?.ToString()));
         ClearPinCommand = new RelayCommand(_ => Pin = string.Empty);
         BackspacePinCommand = new RelayCommand(_ =>
@@ -211,6 +216,8 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand SearchOrBarcodeCommand { get; }
     public RelayCommand StartPaymentCommand { get; }
     public RelayCommand CancelPaymentCommand { get; }
+    public RelayCommand ResetPaymentCommand { get; }
+    public RelayCommand AuthorizeDiscountCommand { get; }
     public RelayCommand PayFullCommand { get; }
     public RelayCommand AddPartialPaymentCommand { get; }
     public RelayCommand ConfirmCashPaymentCommand { get; }
@@ -245,6 +252,7 @@ public sealed class MainViewModel : ObservableObject
             LoginCommand.RaiseCanExecuteChanged();
             LogoutCommand.RaiseCanExecuteChanged();
             OpenCashCommand.RaiseCanExecuteChanged();
+            ConfirmOpenCashCommand.RaiseCanExecuteChanged();
             CloseCashCommand.RaiseCanExecuteChanged();
             GoToSaleCommand.RaiseCanExecuteChanged();
             GoToCatalogCommand.RaiseCanExecuteChanged();
@@ -264,7 +272,9 @@ public sealed class MainViewModel : ObservableObject
             SetProperty(ref _isCashOpen, value);
             RaisePropertyChanged(nameof(CashStatusText));
             OpenCashCommand.RaiseCanExecuteChanged();
+            ConfirmOpenCashCommand.RaiseCanExecuteChanged();
             CloseCashCommand.RaiseCanExecuteChanged();
+            ConfirmCloseCashCommand.RaiseCanExecuteChanged();
             OpenSupplyCommand.RaiseCanExecuteChanged();
             OpenWithdrawalCommand.RaiseCanExecuteChanged();
             ConfirmCashMovementCommand.RaiseCanExecuteChanged();
@@ -448,15 +458,43 @@ public sealed class MainViewModel : ObservableObject
         get => _cashReceived;
         set
         {
-            SetProperty(ref _cashReceived, value);
+            var rounded = decimal.Round(value, 2);
+            if (_cashReceived == rounded)
+                return;
+
+            _cashReceived = rounded;
+            RaisePropertyChanged();
             RaisePropertyChanged(nameof(CashChangeLabel));
+            DeferMoneyTextRefresh(nameof(CashReceivedText));
         }
+    }
+
+    public string CashReceivedText
+    {
+        get => _cashReceived.ToString("N2");
+        set => ApplyMoneyText(value, amount => CashReceived = amount, nameof(CashReceivedText));
     }
 
     public decimal PartialPaymentAmount
     {
         get => _partialPaymentAmount;
-        set => SetProperty(ref _partialPaymentAmount, value);
+        set
+        {
+            var rounded = decimal.Round(value, 2);
+            if (_partialPaymentAmount == rounded)
+                return;
+
+            _partialPaymentAmount = rounded;
+            RaisePropertyChanged();
+            RaisePropertyChanged(nameof(CashChangeLabel));
+            DeferMoneyTextRefresh(nameof(PartialPaymentAmountText));
+        }
+    }
+
+    public string PartialPaymentAmountText
+    {
+        get => _partialPaymentAmount.ToString("N2");
+        set => ApplyMoneyText(value, amount => PartialPaymentAmount = amount, nameof(PartialPaymentAmountText));
     }
 
     public decimal DiscountAmount
@@ -465,22 +503,102 @@ public sealed class MainViewModel : ObservableObject
         set
         {
             var capped = Math.Max(0, Math.Min(value, CartTotal));
-            SetProperty(ref _discountAmount, decimal.Round(capped, 2));
+            var rounded = decimal.Round(capped, 2);
+            var changed = _discountAmount != rounded;
+            SetProperty(ref _discountAmount, rounded);
+            if (changed)
+            {
+                InvalidateDiscountAuthorization();
+                PartialPaymentAmount = PaymentRemaining;
+                CashReceived = PaymentRemaining;
+            }
             RaisePaymentFacts();
             RaisePropertyChanged(nameof(DiscountAuthVisibility));
+            DeferMoneyTextRefresh(nameof(DiscountAmountText));
         }
+    }
+
+    public string DiscountAmountText
+    {
+        get => _discountAmount.ToString("N2");
+        set => ApplyMoneyText(value, amount => DiscountAmount = amount, nameof(DiscountAmountText));
+    }
+
+    private static bool TryParseMoney(string? text, out decimal value)
+    {
+        value = 0;
+        if (string.IsNullOrWhiteSpace(text))
+            return false;
+
+        var trimmed = text.Trim();
+        return decimal.TryParse(trimmed, NumberStyles.Number, CultureInfo.CurrentCulture, out value)
+            || decimal.TryParse(trimmed, NumberStyles.Number, CultureInfo.InvariantCulture, out value);
+    }
+
+    private void ApplyMoneyText(string? text, Action<decimal> assign, string textPropertyName)
+    {
+        if (TryParseMoney(text, out var parsed))
+            assign(decimal.Round(parsed, 2));
+
+        DeferMoneyTextRefresh(textPropertyName);
+    }
+
+    private void DeferMoneyTextRefresh(string propertyName)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess() == false)
+        {
+            RaisePropertyChanged(propertyName);
+            return;
+        }
+
+        dispatcher.BeginInvoke(() => RaisePropertyChanged(propertyName));
     }
 
     public string DiscountAuthorizerUsername
     {
         get => _discountAuthorizerUsername;
-        set => SetProperty(ref _discountAuthorizerUsername, value);
+        set
+        {
+            if (_discountAuthorizerUsername == value)
+                return;
+
+            SetProperty(ref _discountAuthorizerUsername, value);
+            InvalidateDiscountAuthorization();
+        }
     }
 
     public string DiscountAuthorizerPin
     {
         get => _discountAuthorizerPin;
-        set => SetProperty(ref _discountAuthorizerPin, value);
+        set
+        {
+            if (_discountAuthorizerPin == value)
+                return;
+
+            SetProperty(ref _discountAuthorizerPin, value);
+            InvalidateDiscountAuthorization();
+        }
+    }
+
+    public bool DiscountAuthorized
+    {
+        get => _discountAuthorized;
+        private set
+        {
+            if (_discountAuthorized == value)
+                return;
+
+            _discountAuthorized = value;
+            RaisePropertyChanged(nameof(DiscountAuthorized));
+            RaisePaymentCommandStates();
+        }
+    }
+
+    public string DiscountAuthMessage
+    {
+        get => _discountAuthMessage;
+        private set => SetProperty(ref _discountAuthMessage, value);
     }
 
     public PaymentMethod SelectedPaymentMethod
@@ -719,6 +837,8 @@ public sealed class MainViewModel : ObservableObject
 
     private async void BeginCloseCash()
     {
+        try
+        {
         var summary = await _cashRegisterService.GetOpenSummaryAsync();
         if (summary is null)
             return;
@@ -730,6 +850,12 @@ public sealed class MainViewModel : ObservableObject
         ShowCashMovementPanel = false;
         ShowCashClosePanel = true;
         StatusMessage = $"Esperado em dinheiro: {summary.ExpectedCash:C}";
+        }
+        catch (DomainException ex)
+        {
+            System.Diagnostics. Debug.WriteLine(ex.Message);
+            StatusMessage = ex.Message;
+        }
     }
 
     private async Task ConfirmCloseCashAsync()
@@ -847,18 +973,49 @@ public sealed class MainViewModel : ObservableObject
         RaisePaymentFacts();
     }
 
-    private void StartPayment()
+    private void ResetPaymentEdits()
     {
         PaymentLines.Clear();
-        DiscountAmount = Math.Min(DiscountAmount, CartTotal);
-        PartialPaymentAmount = PayableTotal;
-        CashReceived = PayableTotal;
-        PaymentPanelVisibility = "Visible";
+        DiscountAmount = 0;
+        PartialPaymentAmount = CartTotal;
+        CashReceived = CartTotal;
+        SelectedPaymentMethod = PaymentMethod.Pix;
+        DiscountAuthorizerUsername = string.Empty;
+        DiscountAuthorizerPin = string.Empty;
+        DiscountAuthorized = false;
+        DiscountAuthMessage = "Informe usuário e PIN do gerente ou administrador.";
         RaisePaymentFacts();
+        StatusMessage = "Edições do pagamento limpas. Total do carrinho restaurado.";
+    }
+
+    private void StartPayment()
+    {
+        try
+        {
+            PaymentLines.Clear();
+            DiscountAmount = Math.Min(DiscountAmount, CartTotal);
+            PartialPaymentAmount = PayableTotal;
+            CashReceived = PayableTotal;
+            PaymentPanelVisibility = "Visible";
+            RaisePaymentFacts();    
+        }
+        catch (System.Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(ex.Message);
+            throw;
+        }
+        
     }
 
     private async Task AddPaymentAsync(object? parameter, bool payRemaining)
     {
+        if (!IsDiscountClearedForPayment)
+        {
+            StatusMessage = "Autorize o desconto antes de lançar o pagamento.";
+            DiscountAuthMessage = StatusMessage;
+            return;
+        }
+
         if (parameter is string methodText && Enum.TryParse<PaymentMethod>(methodText, out var method))
             SelectedPaymentMethod = method;
 
@@ -923,8 +1080,71 @@ public sealed class MainViewModel : ObservableObject
         _ => method.ToString()
     };
 
+    public void TryAuthorizeDiscountFromFocus()
+    {
+        if (string.IsNullOrWhiteSpace(DiscountAuthorizerUsername) || string.IsNullOrWhiteSpace(DiscountAuthorizerPin))
+            return;
+
+        AuthorizeDiscount();
+    }
+
+    private void AuthorizeDiscount()
+    {
+        if (DiscountAmount <= 0 || _saleService.CurrentUserCanApplyDiscount)
+            return;
+
+        if (string.IsNullOrWhiteSpace(DiscountAuthorizerUsername) || string.IsNullOrWhiteSpace(DiscountAuthorizerPin))
+        {
+            DiscountAuthorized = false;
+            DiscountAuthMessage = "Informe o usuário e o PIN do gerente ou administrador.";
+            StatusMessage = DiscountAuthMessage;
+            return;
+        }
+
+        try
+        {
+            _saleService.ValidateDiscountAuthorization(DiscountAuthorizerUsername, DiscountAuthorizerPin);
+            DiscountAuthorized = true;
+            DiscountAuthMessage = $"Desconto autorizado por {DiscountAuthorizerUsername.Trim()}.";
+            StatusMessage = DiscountAuthMessage;
+        }
+        catch (DomainException ex)
+        {
+            DiscountAuthorized = false;
+            DiscountAuthMessage = ex.Message;
+            StatusMessage = ex.Message;
+        }
+    }
+
+    private void InvalidateDiscountAuthorization()
+    {
+        DiscountAuthorized = false;
+        if (DiscountAmount > 0 && !_saleService.CurrentUserCanApplyDiscount)
+            DiscountAuthMessage = "Informe usuário e PIN. A validação ocorre ao sair do campo ou em Autorizar.";
+    }
+
+    private bool IsDiscountClearedForPayment =>
+        DiscountAmount <= 0 || _saleService.CurrentUserCanApplyDiscount || DiscountAuthorized;
+
+    private bool CanAcceptPayment() => Cart.Count > 0 && IsDiscountClearedForPayment;
+
+    private void RaisePaymentCommandStates()
+    {
+        PayFullCommand.RaiseCanExecuteChanged();
+        AddPartialPaymentCommand.RaiseCanExecuteChanged();
+        ConfirmCashPaymentCommand.RaiseCanExecuteChanged();
+        CompleteMixedPaymentCommand.RaiseCanExecuteChanged();
+    }
+
     private async Task CompleteSaleAsync(IReadOnlyList<PaymentDraftDto> payments)
     {
+        if (!IsDiscountClearedForPayment)
+        {
+            StatusMessage = "Autorize o desconto antes de concluir a venda.";
+            DiscountAuthMessage = StatusMessage;
+            return;
+        }
+
         try
         {
             var cart = Cart.Select(c => new CartItemDto(
@@ -1006,7 +1226,7 @@ public sealed class MainViewModel : ObservableObject
         RaisePropertyChanged(nameof(PaymentRemainingLabel));
         RaisePropertyChanged(nameof(CashChangeLabel));
         RaisePropertyChanged(nameof(DiscountAuthVisibility));
-        CompleteMixedPaymentCommand.RaiseCanExecuteChanged();
+        RaisePaymentCommandStates();
     }
 
     private void RefreshCartTotals()
