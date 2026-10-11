@@ -21,6 +21,8 @@ public sealed class PaymentLineViewModel : ObservableObject
 public sealed class CartLineViewModel : ObservableObject
 {
     private decimal _quantity;
+    private bool _isEditingQuantity;
+    private string _quantityText = "1";
 
     public Guid ProductId { get; init; }
     public string ProductName { get; init; } = string.Empty;
@@ -34,14 +36,33 @@ public sealed class CartLineViewModel : ObservableObject
         {
             SetProperty(ref _quantity, value);
             RaisePropertyChanged(nameof(Subtotal));
+            RaisePropertyChanged(nameof(SubtotalLabel));
             RaisePropertyChanged(nameof(QuantityLabel));
         }
+    }
+
+    public bool IsEditingQuantity
+    {
+        get => _isEditingQuantity;
+        set => SetProperty(ref _isEditingQuantity, value);
+    }
+
+    public string QuantityText
+    {
+        get => _quantityText;
+        set => SetProperty(ref _quantityText, value);
     }
 
     public decimal Subtotal => Math.Round(Quantity * UnitPrice, 2);
     public string QuantityLabel => Quantity % 1 == 0 ? ((int)Quantity).ToString() : Quantity.ToString("0.###");
     public string UnitPriceLabel => UnitPrice.ToString("C");
     public string SubtotalLabel => Subtotal.ToString("C");
+
+    public void BeginQuantityEdit()
+    {
+        QuantityText = QuantityLabel;
+        IsEditingQuantity = true;
+    }
 }
 
 public sealed class MainViewModel : ObservableObject
@@ -82,6 +103,7 @@ public sealed class MainViewModel : ObservableObject
     private bool _showCashMovementPanel;
     private bool _showTicketPanel;
     private bool _showReprintPanel;
+    private bool _showCashMenu;
     private string _ticketPreviewText = string.Empty;
     private Guid? _currentTicketSaleId;
     private string _ticketPanelTitle = "Ticket";
@@ -93,6 +115,7 @@ public sealed class MainViewModel : ObservableObject
     private string _currentScreen = "Sale";
     private bool _canManageCatalog;
     private bool _canManageUsers;
+    private bool _isNavCollapsed;
 
     public MainViewModel(
         AuthService authService,
@@ -132,7 +155,11 @@ public sealed class MainViewModel : ObservableObject
 
         LoginCommand = new RelayCommand(async _ => await LoginAsync(), _ => !IsAuthenticated);
         LogoutCommand = new RelayCommand(async _ => await LogoutAsync(), _ => IsAuthenticated);
-        OpenCashCommand = new RelayCommand(_ => ShowCashOpenPanel = true, _ => IsAuthenticated && !IsCashOpen);
+        OpenCashCommand = new RelayCommand(_ =>
+        {
+            ShowCashMenu = false;
+            ShowCashOpenPanel = true;
+        }, _ => IsAuthenticated && !IsCashOpen);
         ConfirmOpenCashCommand = new RelayCommand(async _ => await OpenCashAsync(), _ => IsAuthenticated && !IsCashOpen);
         CloseCashCommand = new RelayCommand(_ => BeginCloseCash(), _ => IsAuthenticated && IsCashOpen);
         ConfirmCloseCashCommand = new RelayCommand(async _ => await ConfirmCloseCashAsync(), _ => IsCashOpen);
@@ -146,6 +173,9 @@ public sealed class MainViewModel : ObservableObject
         IncreaseItemCommand = new RelayCommand(p => ChangeQty(p as CartLineViewModel, 1), _ => IsCashOpen);
         DecreaseItemCommand = new RelayCommand(p => ChangeQty(p as CartLineViewModel, -1), _ => IsCashOpen);
         RemoveItemCommand = new RelayCommand(p => RemoveItem(p as CartLineViewModel), _ => IsCashOpen);
+        BeginEditQuantityCommand = new RelayCommand(p => BeginEditQuantity(p as CartLineViewModel), _ => IsCashOpen);
+        CommitQuantityCommand = new RelayCommand(p => CommitQuantity(p as CartLineViewModel));
+        CancelQuantityEditCommand = new RelayCommand(p => CancelQuantityEdit(p as CartLineViewModel));
         ClearCartCommand = new RelayCommand(_ => ClearCart(), _ => Cart.Count > 0);
         SearchCommand = new RelayCommand(async _ => await LoadProductsAsync());
         SearchOrBarcodeCommand = new RelayCommand(async _ => await SearchOrBarcodeAsync());
@@ -176,6 +206,8 @@ public sealed class MainViewModel : ObservableObject
         CloseTicketCommand = new RelayCommand(_ => CloseTicketPanel());
         PrintTicketCommand = new RelayCommand(async _ => await PrintCurrentTicketAsync(), _ => _currentTicketSaleId.HasValue);
         OpenReprintCommand = new RelayCommand(async _ => await OpenReprintPanelAsync(), _ => IsAuthenticated);
+        ToggleCashMenuCommand = new RelayCommand(_ => ShowCashMenu = !ShowCashMenu, _ => IsAuthenticated);
+        ToggleNavCommand = new RelayCommand(_ => IsNavCollapsed = !IsNavCollapsed);
         CloseReprintCommand = new RelayCommand(_ => ShowReprintPanel = false);
         ViewTicketCommand = new RelayCommand(async p => await ViewTicketAsync(p as TicketDto), _ => IsAuthenticated);
         ReprintSelectedCommand = new RelayCommand(async p => await ReprintTicketAsync(p as TicketDto), _ => IsAuthenticated);
@@ -211,6 +243,9 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand IncreaseItemCommand { get; }
     public RelayCommand DecreaseItemCommand { get; }
     public RelayCommand RemoveItemCommand { get; }
+    public RelayCommand BeginEditQuantityCommand { get; }
+    public RelayCommand CommitQuantityCommand { get; }
+    public RelayCommand CancelQuantityEditCommand { get; }
     public RelayCommand ClearCartCommand { get; }
     public RelayCommand SearchCommand { get; }
     public RelayCommand SearchOrBarcodeCommand { get; }
@@ -237,6 +272,8 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand CloseTicketCommand { get; }
     public RelayCommand PrintTicketCommand { get; }
     public RelayCommand OpenReprintCommand { get; }
+    public RelayCommand ToggleCashMenuCommand { get; }
+    public RelayCommand ToggleNavCommand { get; }
     public RelayCommand CloseReprintCommand { get; }
     public RelayCommand ViewTicketCommand { get; }
     public RelayCommand ReprintSelectedCommand { get; }
@@ -259,6 +296,7 @@ public sealed class MainViewModel : ObservableObject
             GoToUsersCommand.RaiseCanExecuteChanged();
             GoToHistoryCommand.RaiseCanExecuteChanged();
             OpenReprintCommand.RaiseCanExecuteChanged();
+            ToggleCashMenuCommand.RaiseCanExecuteChanged();
             RaisePropertyChanged(nameof(CatalogButtonVisibility));
             RaisePropertyChanged(nameof(UsersButtonVisibility));
         }
@@ -279,6 +317,7 @@ public sealed class MainViewModel : ObservableObject
             OpenWithdrawalCommand.RaiseCanExecuteChanged();
             ConfirmCashMovementCommand.RaiseCanExecuteChanged();
             AddProductCommand.RaiseCanExecuteChanged();
+            BeginEditQuantityCommand.RaiseCanExecuteChanged();
             StartPaymentCommand.RaiseCanExecuteChanged();
             RaisePropertyChanged(nameof(CashMovementButtonsVisibility));
         }
@@ -291,17 +330,26 @@ public sealed class MainViewModel : ObservableObject
     public string CatalogScreenVisibility => CurrentScreen == "Catalog" ? "Visible" : "Collapsed";
     public string UsersScreenVisibility => CurrentScreen == "Users" ? "Visible" : "Collapsed";
     public string HistoryScreenVisibility => CurrentScreen == "History" ? "Visible" : "Collapsed";
+    public bool IsSaleScreen => CurrentScreen == "Sale";
+    public bool IsHistoryScreen => CurrentScreen == "History";
+    public bool IsCatalogScreen => CurrentScreen == "Catalog";
+    public bool IsUsersScreen => CurrentScreen == "Users";
 
     public string CurrentScreen
     {
         get => _currentScreen;
         set
         {
+            ShowCashMenu = false;
             SetProperty(ref _currentScreen, value);
             RaisePropertyChanged(nameof(SaleScreenVisibility));
             RaisePropertyChanged(nameof(CatalogScreenVisibility));
             RaisePropertyChanged(nameof(UsersScreenVisibility));
             RaisePropertyChanged(nameof(HistoryScreenVisibility));
+            RaisePropertyChanged(nameof(IsSaleScreen));
+            RaisePropertyChanged(nameof(IsHistoryScreen));
+            RaisePropertyChanged(nameof(IsCatalogScreen));
+            RaisePropertyChanged(nameof(IsUsersScreen));
         }
     }
 
@@ -313,6 +361,7 @@ public sealed class MainViewModel : ObservableObject
             SetProperty(ref _canManageCatalog, value);
             GoToCatalogCommand.RaiseCanExecuteChanged();
             RaisePropertyChanged(nameof(CatalogButtonVisibility));
+            RaisePropertyChanged(nameof(AdminSectionVisibility));
         }
     }
 
@@ -324,11 +373,39 @@ public sealed class MainViewModel : ObservableObject
             SetProperty(ref _canManageUsers, value);
             GoToUsersCommand.RaiseCanExecuteChanged();
             RaisePropertyChanged(nameof(UsersButtonVisibility));
+            RaisePropertyChanged(nameof(AdminSectionVisibility));
         }
     }
 
     public string CatalogButtonVisibility => CanManageCatalog ? "Visible" : "Collapsed";
     public string UsersButtonVisibility => CanManageUsers ? "Visible" : "Collapsed";
+    public string AdminSectionVisibility => CanManageCatalog || CanManageUsers ? "Visible" : "Collapsed";
+
+    public bool IsNavCollapsed
+    {
+        get => _isNavCollapsed;
+        set
+        {
+            SetProperty(ref _isNavCollapsed, value);
+            RaisePropertyChanged(nameof(NavLabelVisibility));
+            RaisePropertyChanged(nameof(NavRailWidth));
+            RaisePropertyChanged(nameof(NavToggleGlyph));
+            RaisePropertyChanged(nameof(NavToggleHorizontalAlignment));
+            RaisePropertyChanged(nameof(NavToggleToolTip));
+        }
+    }
+
+    public string NavLabelVisibility => IsNavCollapsed ? "Collapsed" : "Visible";
+    public double NavRailWidth => IsNavCollapsed ? 84 : 240;
+    public string NavToggleGlyph => IsNavCollapsed ? "\uE76C" : "\uE76B";
+    public string NavToggleHorizontalAlignment => IsNavCollapsed ? "Center" : "Right";
+    public string NavToggleToolTip => IsNavCollapsed ? "Expandir menu" : "Recolher menu";
+
+    public bool ShowCashMenu
+    {
+        get => _showCashMenu;
+        set => SetProperty(ref _showCashMenu, value);
+    }
     public string CashMovementButtonsVisibility => IsCashOpen ? "Visible" : "Collapsed";
     public string DiscountAuthVisibility =>
         DiscountAmount > 0 && !_saleService.CurrentUserCanApplyDiscount ? "Visible" : "Collapsed";
@@ -696,6 +773,7 @@ public sealed class MainViewModel : ObservableObject
         ShowCashMovementPanel = false;
         ShowTicketPanel = false;
         ShowReprintPanel = false;
+        ShowCashMenu = false;
         TodayTickets.Clear();
         CashMovements.Clear();
         RefreshCartTotals();
@@ -759,6 +837,7 @@ public sealed class MainViewModel : ObservableObject
 
     private async Task OpenMovementPanelAsync(CashMovementType type)
     {
+        ShowCashMenu = false;
         if (!IsCashOpen)
         {
             StatusMessage = "Abra o caixa antes de movimentar.";
@@ -837,6 +916,7 @@ public sealed class MainViewModel : ObservableObject
 
     private async void BeginCloseCash()
     {
+        ShowCashMenu = false;
         try
         {
         var summary = await _cashRegisterService.GetOpenSummaryAsync();
@@ -939,6 +1019,12 @@ public sealed class MainViewModel : ObservableObject
         if (item is null)
             return;
 
+        if (item.IsEditingQuantity)
+            CommitQuantity(item);
+
+        if (!Cart.Contains(item))
+            return;
+
         var next = item.Quantity + delta;
         if (next <= 0)
             Cart.Remove(item);
@@ -946,6 +1032,65 @@ public sealed class MainViewModel : ObservableObject
             item.Quantity = next;
 
         RefreshCartTotals();
+    }
+
+    private void BeginEditQuantity(CartLineViewModel? item)
+    {
+        if (item is null || !IsCashOpen)
+            return;
+
+        foreach (var other in Cart.Where(line => !ReferenceEquals(line, item) && line.IsEditingQuantity).ToList())
+            CommitQuantity(other);
+
+        if (!Cart.Contains(item))
+            return;
+
+        item.BeginQuantityEdit();
+    }
+
+    private void CommitQuantity(CartLineViewModel? item)
+    {
+        if (item is null || !item.IsEditingQuantity)
+            return;
+
+        item.IsEditingQuantity = false;
+
+        if (!TryParseMoney(item.QuantityText, out var quantity))
+        {
+            StatusMessage = "Quantidade inválida.";
+            return;
+        }
+
+        quantity = decimal.Round(quantity, 3);
+        if (quantity <= 0)
+        {
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher is null)
+            {
+                Cart.Remove(item);
+                RefreshCartTotals();
+                return;
+            }
+
+            dispatcher.BeginInvoke(() =>
+            {
+                Cart.Remove(item);
+                RefreshCartTotals();
+            });
+            return;
+        }
+
+        item.Quantity = quantity;
+        RefreshCartTotals();
+    }
+
+    private void CancelQuantityEdit(CartLineViewModel? item)
+    {
+        if (item is null)
+            return;
+
+        item.IsEditingQuantity = false;
+        item.QuantityText = item.QuantityLabel;
     }
 
     private void RemoveItem(CartLineViewModel? item)
@@ -1284,6 +1429,7 @@ public sealed class MainViewModel : ObservableObject
 
     private async Task OpenReprintPanelAsync()
     {
+        ShowCashMenu = false;
         TodayTickets.Clear();
         foreach (var ticket in await _ticketService.GetTodayTicketsAsync())
             TodayTickets.Add(ticket);

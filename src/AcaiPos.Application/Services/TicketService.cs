@@ -50,8 +50,8 @@ public sealed class TicketService
 
     public Task<IReadOnlyList<TicketDto>> GetTodayTicketsAsync(CancellationToken cancellationToken = default)
     {
-        var start = DateTime.UtcNow.Date;
-        var end = start.AddDays(1);
+        var start = DateTime.SpecifyKind(DateTime.Today, DateTimeKind.Local).ToUniversalTime();
+        var end = DateTime.SpecifyKind(DateTime.Today.AddDays(1), DateTimeKind.Local).ToUniversalTime();
 
         var query = _db.Sales.Where(s => s.SoldAt >= start && s.SoldAt < end);
         if (_session.CurrentTerminal is not null)

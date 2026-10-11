@@ -668,6 +668,9 @@ public sealed class SaleService
     public bool CurrentUserCanCancelSales => _session.CurrentUser?.CanCancelSales == true;
     public bool CurrentUserCanApplyDiscount => _session.CurrentUser?.CanApplyDiscount == true;
 
+    public void ValidateDiscountAuthorization(string? authorizerUsername, string? authorizerPin)
+        => EnsureDiscountAuthorized(authorizerUsername, authorizerPin);
+
     private void EnsureDiscountAuthorized(string? authorizerUsername, string? authorizerPin)
     {
         if (_session.CurrentUser!.CanApplyDiscount)

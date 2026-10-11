@@ -10,4 +10,10 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContext = viewModel;
     }
+
+    private void DiscountAuthorizerField_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel viewModel)
+            viewModel.TryAuthorizeDiscountFromFocus();
+    }
 }
