@@ -9,7 +9,7 @@ public class SaleTests
     public void Complete_Sale_With_Cash_Calculates_Change()
     {
         var category = Category.Create("Bowls");
-        var product = Product.Create("Açaí 500ml", "ACAI-500", category.Id, 25m);
+        var product = Product.Create("Açaí 500ml", "ACAI-500", [category.Id], 25m);
         var sale = Sale.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "T20260101-0001");
 
         sale.AddItem(product, 2);
@@ -25,7 +25,7 @@ public class SaleTests
     public void Multiple_Payments_Must_Cover_Total()
     {
         var category = Category.Create("Bowls");
-        var product = Product.Create("Açaí 500ml", "ACAI-500", category.Id, 100m);
+        var product = Product.Create("Açaí 500ml", "ACAI-500", [category.Id], 100m);
         var sale = Sale.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "T20260101-0002");
 
         sale.AddItem(product, 1);
@@ -42,8 +42,8 @@ public class SaleTests
     public void Inactive_Product_Cannot_Be_Sold()
     {
         var category = Category.Create("Bowls");
-        var product = Product.Create("Açaí 500ml", "ACAI-500", category.Id, 25m);
-        product.Update(product.Name, product.Sku, category.Id, product.SalePrice, product.Barcode, product.CostPrice, product.UnitOfMeasure, isActive: false);
+        var product = Product.Create("Açaí 500ml", "ACAI-500", [category.Id], 25m);
+        product.Update(product.Name, product.Sku, [category.Id], product.SalePrice, product.Barcode, product.CostPrice, product.UnitOfMeasure, isActive: false);
 
         var sale = Sale.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "T20260101-0003");
 

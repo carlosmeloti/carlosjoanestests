@@ -4,17 +4,19 @@ namespace AcaiPos.Domain.Entities;
 
 public class Product : AuditableEntity
 {
+    private readonly List<ProductCategory> _categories = [];
+
     public string Name { get; private set; } = string.Empty;
     public string Sku { get; private set; } = string.Empty;
     public string? Barcode { get; private set; }
-    public Guid CategoryId { get; private set; }
     public decimal SalePrice { get; private set; }
     public decimal? CostPrice { get; private set; }
     public decimal StockQuantity { get; private set; }
     public string UnitOfMeasure { get; private set; } = "UN";
     public bool IsActive { get; private set; } = true;
 
-    public Category? Category { get; private set; }
+    public IReadOnlyCollection<ProductCategory> Categories => _categories;
+    public IReadOnlyCollection<Guid> CategoryIds => _categories.Select(link => link.CategoryId).ToList();
 
     private Product()
     {
@@ -23,7 +25,7 @@ public class Product : AuditableEntity
     public static Product Create(
         string name,
         string sku,
-        Guid categoryId,
+        IReadOnlyCollection<Guid> categoryIds,
         decimal salePrice,
         string? barcode = null,
         decimal? costPrice = null,
@@ -34,31 +36,31 @@ public class Product : AuditableEntity
             throw new DomainException("Nome do produto é obrigatório.");
         if (string.IsNullOrWhiteSpace(sku))
             throw new DomainException("SKU é obrigatório.");
-        if (categoryId == Guid.Empty)
-            throw new DomainException("Categoria é obrigatória.");
         if (salePrice < 0)
             throw new DomainException("Preço de venda não pode ser negativo.");
         if (stockQuantity < 0)
             throw new DomainException("Estoque não pode ser negativo.");
 
-        return new Product
+        var product = new Product
         {
             Name = name.Trim(),
             Sku = sku.Trim().ToUpperInvariant(),
             Barcode = string.IsNullOrWhiteSpace(barcode) ? null : barcode.Trim(),
-            CategoryId = categoryId,
             SalePrice = decimal.Round(salePrice, 2),
             CostPrice = costPrice.HasValue ? decimal.Round(costPrice.Value, 2) : null,
             StockQuantity = stockQuantity,
             UnitOfMeasure = string.IsNullOrWhiteSpace(unitOfMeasure) ? "UN" : unitOfMeasure.Trim().ToUpperInvariant(),
             IsActive = true
         };
+
+        product.SetCategories(categoryIds);
+        return product;
     }
 
     public void Update(
         string name,
         string sku,
-        Guid categoryId,
+        IReadOnlyCollection<Guid> categoryIds,
         decimal salePrice,
         string? barcode,
         decimal? costPrice,
@@ -74,13 +76,33 @@ public class Product : AuditableEntity
 
         Name = name.Trim();
         Sku = sku.Trim().ToUpperInvariant();
-        CategoryId = categoryId;
         SalePrice = decimal.Round(salePrice, 2);
         Barcode = string.IsNullOrWhiteSpace(barcode) ? null : barcode.Trim();
         CostPrice = costPrice.HasValue ? decimal.Round(costPrice.Value, 2) : null;
         UnitOfMeasure = string.IsNullOrWhiteSpace(unitOfMeasure) ? "UN" : unitOfMeasure.Trim().ToUpperInvariant();
         IsActive = isActive;
+        SetCategories(categoryIds);
         MarkUpdated();
+    }
+
+    public void SetCategories(IEnumerable<Guid> categoryIds)
+    {
+        var ids = categoryIds
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList();
+
+        if (ids.Count == 0)
+            throw new DomainException("Selecione ao menos uma categoria.");
+
+        foreach (var link in _categories.Where(link => !ids.Contains(link.CategoryId)).ToList())
+            _categories.Remove(link);
+
+        foreach (var id in ids)
+        {
+            if (_categories.All(link => link.CategoryId != id))
+                _categories.Add(ProductCategory.Create(Id, id));
+        }
     }
 
     public void AdjustStock(decimal quantityDelta)

@@ -27,7 +27,6 @@ public sealed class CatalogManagementViewModel : ObservableObject
     private string _productName = string.Empty;
     private string _productSku = string.Empty;
     private string _productBarcode = string.Empty;
-    private Guid _productCategoryId;
     private decimal _productSalePrice;
     private decimal? _productCostPrice;
     private decimal _productStock;
@@ -60,9 +59,9 @@ public sealed class CatalogManagementViewModel : ObservableObject
     }
 
     public ObservableCollection<CategoryManageDto> ManagedCategories { get; } = [];
-    public ObservableCollection<CategoryManageDto> ActiveCategoryOptions { get; } = [];
     public ObservableCollection<CategoryManageDto> FilterCategoryOptions { get; } = [];
     public ObservableCollection<ProductManageDto> ManagedProducts { get; } = [];
+    public ObservableCollection<ProductCategoryOption> ProductCategoryOptions { get; } = [];
 
     public RelayCommand ShowProductsTabCommand { get; }
     public RelayCommand ShowCategoriesTabCommand { get; }
@@ -164,12 +163,6 @@ public sealed class CatalogManagementViewModel : ObservableObject
         set => SetProperty(ref _productBarcode, value);
     }
 
-    public Guid ProductCategoryId
-    {
-        get => _productCategoryId;
-        set => SetProperty(ref _productCategoryId, value);
-    }
-
     public decimal ProductSalePrice
     {
         get => _productSalePrice;
@@ -212,7 +205,6 @@ public sealed class CatalogManagementViewModel : ObservableObject
     private async Task LoadCategoriesAsync()
     {
         ManagedCategories.Clear();
-        ActiveCategoryOptions.Clear();
         FilterCategoryOptions.Clear();
         FilterCategoryOptions.Add(new CategoryManageDto(Guid.Empty, "Todas", null, 0, true));
 
@@ -220,8 +212,6 @@ public sealed class CatalogManagementViewModel : ObservableObject
         {
             ManagedCategories.Add(category);
             FilterCategoryOptions.Add(category);
-            if (category.IsActive)
-                ActiveCategoryOptions.Add(category);
         }
 
         FilterCategoryId ??= Guid.Empty;
@@ -326,7 +316,7 @@ public sealed class CatalogManagementViewModel : ObservableObject
         ProductName = string.Empty;
         ProductSku = string.Empty;
         ProductBarcode = string.Empty;
-        ProductCategoryId = ActiveCategoryOptions.FirstOrDefault()?.Id ?? Guid.Empty;
+        RebuildProductCategoryOptions();
         ProductSalePrice = 0;
         ProductCostPrice = null;
         ProductStock = 0;
@@ -345,19 +335,12 @@ public sealed class CatalogManagementViewModel : ObservableObject
         ProductName = product.Name;
         ProductSku = product.Sku;
         ProductBarcode = product.Barcode ?? string.Empty;
-        ProductCategoryId = product.CategoryId;
+        RebuildProductCategoryOptions(product.CategoryIds);
         ProductSalePrice = product.SalePrice;
         ProductCostPrice = product.CostPrice;
         ProductStock = product.StockQuantity;
         ProductUnit = product.UnitOfMeasure;
         ProductIsActive = product.IsActive;
-
-        if (ActiveCategoryOptions.All(c => c.Id != product.CategoryId))
-        {
-            var category = ManagedCategories.FirstOrDefault(c => c.Id == product.CategoryId);
-            if (category is not null)
-                ActiveCategoryOptions.Insert(0, category);
-        }
 
         RaisePropertyChanged(nameof(ProductEditorTitle));
         EditorMessage = $"Editando produto {product.Name}.";
@@ -371,7 +354,7 @@ public sealed class CatalogManagementViewModel : ObservableObject
                 ProductName,
                 ProductSku,
                 string.IsNullOrWhiteSpace(ProductBarcode) ? null : ProductBarcode,
-                ProductCategoryId,
+                ProductCategoryOptions.Where(option => option.IsSelected).Select(option => option.Id).ToList(),
                 ProductSalePrice,
                 ProductCostPrice,
                 ProductStock,
@@ -420,5 +403,43 @@ public sealed class CatalogManagementViewModel : ObservableObject
         {
             EditorMessage = ex.Message;
         }
+    }
+
+    private void RebuildProductCategoryOptions(IReadOnlyCollection<Guid>? selectedIds = null)
+    {
+        var selected = selectedIds?.ToHashSet() ?? [];
+        ProductCategoryOptions.Clear();
+
+        foreach (var category in ManagedCategories
+            .Where(category => category.IsActive || selected.Contains(category.Id))
+            .OrderBy(category => category.SortOrder)
+            .ThenBy(category => category.Name))
+        {
+            ProductCategoryOptions.Add(new ProductCategoryOption(
+                category.Id,
+                category.Name,
+                selected.Contains(category.Id)));
+        }
+    }
+}
+
+public sealed class ProductCategoryOption : ObservableObject
+{
+    private bool _isSelected;
+
+    public ProductCategoryOption(Guid id, string name, bool isSelected)
+    {
+        Id = id;
+        Name = name;
+        _isSelected = isSelected;
+    }
+
+    public Guid Id { get; }
+    public string Name { get; }
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set => SetProperty(ref _isSelected, value);
     }
 }

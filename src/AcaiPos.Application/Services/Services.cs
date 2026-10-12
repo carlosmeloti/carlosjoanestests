@@ -130,7 +130,7 @@ public sealed class CatalogService
         var query = _db.Products.Where(p => p.IsActive && p.DeletedAt == null);
 
         if (categoryId.HasValue)
-            query = query.Where(p => p.CategoryId == categoryId.Value);
+            query = query.Where(p => p.Categories.Any(link => link.CategoryId == categoryId.Value));
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -141,21 +141,24 @@ public sealed class CatalogService
                 (p.Barcode != null && p.Barcode.Contains(term)));
         }
 
-        var categories = _db.Categories.ToDictionary(c => c.Id, c => c.Name);
+        var products = query.OrderBy(p => p.Name).ToList();
+        var described = DescribeProducts(products.Select(p => p.Id).ToList());
 
-        var items = query
-            .OrderBy(p => p.Name)
-            .AsEnumerable()
-            .Select(p => new ProductDto(
-                p.Id,
-                p.Name,
-                p.Sku,
-                p.Barcode,
-                p.CategoryId,
-                categories.GetValueOrDefault(p.CategoryId, "Sem categoria"),
-                p.SalePrice,
-                p.StockQuantity,
-                p.UnitOfMeasure))
+        var items = products
+            .Select(p =>
+            {
+                var (ids, names) = described[p.Id];
+                return new ProductDto(
+                    p.Id,
+                    p.Name,
+                    p.Sku,
+                    p.Barcode,
+                    ids,
+                    names,
+                    p.SalePrice,
+                    p.StockQuantity,
+                    p.UnitOfMeasure);
+            })
             .ToList();
 
         return Task.FromResult<IReadOnlyList<ProductDto>>(items);
@@ -174,7 +177,7 @@ public sealed class CatalogService
             query = query.Where(p => p.IsActive);
 
         if (categoryId.HasValue && categoryId.Value != Guid.Empty)
-            query = query.Where(p => p.CategoryId == categoryId.Value);
+            query = query.Where(p => p.Categories.Any(link => link.CategoryId == categoryId.Value));
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -185,11 +188,14 @@ public sealed class CatalogService
                 (p.Barcode != null && p.Barcode.Contains(term)));
         }
 
-        var categories = _db.Categories.ToDictionary(c => c.Id, c => c.Name);
-        var items = query
-            .OrderBy(p => p.Name)
-            .AsEnumerable()
-            .Select(p => MapManageProduct(p, categories.GetValueOrDefault(p.CategoryId, "Sem categoria")))
+        var products = query.OrderBy(p => p.Name).ToList();
+        var described = DescribeProducts(products.Select(p => p.Id).ToList());
+        var items = products
+            .Select(p =>
+            {
+                var (ids, names) = described[p.Id];
+                return MapManageProduct(p, ids, names);
+            })
             .ToList();
 
         return Task.FromResult<IReadOnlyList<ProductManageDto>>(items);
@@ -203,13 +209,13 @@ public sealed class CatalogService
         if (product is null)
             return Task.FromResult<ProductDto?>(null);
 
-        var categoryName = _db.Categories.FirstOrDefault(c => c.Id == product.CategoryId)?.Name ?? "Sem categoria";
+        var (categoryIds, categoryName) = DescribeProducts([product.Id])[product.Id];
         return Task.FromResult<ProductDto?>(new ProductDto(
             product.Id,
             product.Name,
             product.Sku,
             product.Barcode,
-            product.CategoryId,
+            categoryIds,
             categoryName,
             product.SalePrice,
             product.StockQuantity,
@@ -261,7 +267,9 @@ public sealed class CatalogService
             ?? throw new DomainException("Categoria não encontrada.");
 
         var hasActiveProducts = _db.Products.Any(p =>
-            p.CategoryId == categoryId && p.IsActive && p.DeletedAt == null);
+            p.IsActive &&
+            p.DeletedAt == null &&
+            p.Categories.Any(link => link.CategoryId == categoryId));
 
         if (hasActiveProducts)
             throw new DomainException("Existem produtos ativos nesta categoria. Desative-os antes.");
@@ -276,14 +284,15 @@ public sealed class CatalogService
         CancellationToken cancellationToken = default)
     {
         EnsureCanManage();
-        EnsureCategoryExists(request.CategoryId);
+        var categoryIds = NormalizeCategoryIds(request.CategoryIds);
+        EnsureCategoriesAssignable(categoryIds);
         EnsureUniqueSku(request.Sku);
         EnsureUniqueBarcode(request.Barcode);
 
         var product = Domain.Entities.Product.Create(
             request.Name,
             request.Sku,
-            request.CategoryId,
+            categoryIds,
             request.SalePrice,
             request.Barcode,
             request.CostPrice,
@@ -295,7 +304,7 @@ public sealed class CatalogService
             product.Update(
                 product.Name,
                 product.Sku,
-                product.CategoryId,
+                categoryIds,
                 product.SalePrice,
                 product.Barcode,
                 product.CostPrice,
@@ -307,8 +316,8 @@ public sealed class CatalogService
         await _audit.LogAsync("PRODUCT_CREATE", "Product", product.Id, $"{product.Sku} — {product.Name}", cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
-        var categoryName = _db.Categories.First(c => c.Id == product.CategoryId).Name;
-        return MapManageProduct(product, categoryName);
+        var described = DescribeCategories(categoryIds);
+        return MapManageProduct(product, described.Ids, described.Names);
     }
 
     public async Task<ProductManageDto> UpdateProductAsync(
@@ -317,19 +326,22 @@ public sealed class CatalogService
         CancellationToken cancellationToken = default)
     {
         EnsureCanManage();
-        EnsureCategoryExists(request.CategoryId, requireActive: false);
+        var categoryIds = NormalizeCategoryIds(request.CategoryIds);
         EnsureUniqueSku(request.Sku, productId);
         EnsureUniqueBarcode(request.Barcode, productId);
 
         var product = _db.Products.FirstOrDefault(p => p.Id == productId && p.DeletedAt == null)
             ?? throw new DomainException("Produto não encontrado.");
 
+        _db.LoadProductCategories(product);
+        EnsureCategoriesAssignable(categoryIds, product.CategoryIds.ToHashSet());
+
         var stockDelta = request.StockQuantity - product.StockQuantity;
 
         product.Update(
             request.Name,
             request.Sku,
-            request.CategoryId,
+            categoryIds,
             request.SalePrice,
             request.Barcode,
             request.CostPrice,
@@ -350,8 +362,8 @@ public sealed class CatalogService
         await _audit.LogAsync("PRODUCT_UPDATE", "Product", product.Id, $"{product.Sku} — {product.Name}", cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
-        var categoryName = _db.Categories.First(c => c.Id == product.CategoryId).Name;
-        return MapManageProduct(product, categoryName);
+        var described = DescribeCategories(categoryIds);
+        return MapManageProduct(product, described.Ids, described.Names);
     }
 
     public async Task DeactivateProductAsync(Guid productId, CancellationToken cancellationToken = default)
@@ -361,10 +373,12 @@ public sealed class CatalogService
         var product = _db.Products.FirstOrDefault(p => p.Id == productId && p.DeletedAt == null)
             ?? throw new DomainException("Produto não encontrado.");
 
+        _db.LoadProductCategories(product);
+
         product.Update(
             product.Name,
             product.Sku,
-            product.CategoryId,
+            product.CategoryIds.ToList(),
             product.SalePrice,
             product.Barcode,
             product.CostPrice,
@@ -375,13 +389,16 @@ public sealed class CatalogService
         await _db.SaveChangesAsync(cancellationToken);
     }
 
-    private static ProductManageDto MapManageProduct(Domain.Entities.Product product, string categoryName)
+    private static ProductManageDto MapManageProduct(
+        Domain.Entities.Product product,
+        IReadOnlyList<Guid> categoryIds,
+        string categoryName)
         => new(
             product.Id,
             product.Name,
             product.Sku,
             product.Barcode,
-            product.CategoryId,
+            categoryIds,
             categoryName,
             product.SalePrice,
             product.CostPrice,
@@ -389,19 +406,93 @@ public sealed class CatalogService
             product.UnitOfMeasure,
             product.IsActive);
 
+    private sealed record CategoryLabel(string Name, int SortOrder);
+
+    private List<Guid> NormalizeCategoryIds(IReadOnlyCollection<Guid> categoryIds)
+    {
+        var ids = categoryIds
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList();
+
+        if (ids.Count == 0)
+            throw new DomainException("Selecione ao menos uma categoria.");
+
+        return ids;
+    }
+
+    private void EnsureCategoriesAssignable(IReadOnlyList<Guid> categoryIds, IReadOnlySet<Guid>? alreadyAssigned = null)
+    {
+        var categories = _db.Categories
+            .Where(c => categoryIds.Contains(c.Id) && c.DeletedAt == null)
+            .ToList();
+
+        if (categories.Count != categoryIds.Count)
+            throw new DomainException("Categoria inválida.");
+
+        alreadyAssigned ??= new HashSet<Guid>();
+        if (categories.Any(c => !c.IsActive && !alreadyAssigned.Contains(c.Id)))
+            throw new DomainException("Categoria inválida ou inativa.");
+    }
+
+    private (IReadOnlyList<Guid> Ids, string Names) DescribeCategories(IReadOnlyCollection<Guid> categoryIds)
+    {
+        if (categoryIds.Count == 0)
+            return ([], "Sem categoria");
+
+        var labels = _db.Categories
+            .Where(c => categoryIds.Contains(c.Id))
+            .ToDictionary(c => c.Id, c => new CategoryLabel(c.Name, c.SortOrder));
+
+        var ordered = categoryIds
+            .Distinct()
+            .Where(labels.ContainsKey)
+            .OrderBy(id => labels[id].SortOrder)
+            .ThenBy(id => labels[id].Name)
+            .ToList();
+
+        var names = ordered.Select(id => labels[id].Name).ToList();
+        return (ordered, names.Count == 0 ? "Sem categoria" : string.Join(", ", names));
+    }
+
+    private Dictionary<Guid, (IReadOnlyList<Guid> Ids, string Names)> DescribeProducts(IReadOnlyCollection<Guid> productIds)
+    {
+        var result = productIds.ToDictionary(
+            id => id,
+            _ => ((IReadOnlyList<Guid>)[], "Sem categoria"));
+
+        if (productIds.Count == 0)
+            return result;
+
+        var links = _db.ProductCategories.Where(link => productIds.Contains(link.ProductId)).ToList();
+        var categoryIds = links.Select(link => link.CategoryId).Distinct().ToList();
+        var labels = categoryIds.Count == 0
+            ? new Dictionary<Guid, CategoryLabel>()
+            : _db.Categories
+                .Where(c => categoryIds.Contains(c.Id))
+                .ToDictionary(c => c.Id, c => new CategoryLabel(c.Name, c.SortOrder));
+
+        foreach (var group in links.GroupBy(link => link.ProductId))
+        {
+            var ordered = group
+                .Select(link => link.CategoryId)
+                .Distinct()
+                .Where(labels.ContainsKey)
+                .OrderBy(id => labels[id].SortOrder)
+                .ThenBy(id => labels[id].Name)
+                .ToList();
+
+            var names = ordered.Select(id => labels[id].Name).ToList();
+            result[group.Key] = (ordered, names.Count == 0 ? "Sem categoria" : string.Join(", ", names));
+        }
+
+        return result;
+    }
+
     private void EnsureCanManage()
     {
         if (_session.CurrentUser is null || !_session.CurrentUser.CanManageProducts)
             throw new DomainException("Sem permissão para gerenciar o catálogo.");
-    }
-
-    private void EnsureCategoryExists(Guid categoryId, bool requireActive = true)
-    {
-        var category = _db.Categories.FirstOrDefault(c => c.Id == categoryId && c.DeletedAt == null)
-            ?? throw new DomainException("Categoria inválida.");
-
-        if (requireActive && !category.IsActive)
-            throw new DomainException("Categoria inválida ou inativa.");
     }
 
     private void EnsureUniqueCategoryName(string name, Guid? ignoreId = null)
@@ -519,7 +610,7 @@ public sealed class CashRegisterService
         var operators = _db.Users.ToDictionary(u => u.Id, u => u.Name);
 
         var items = _db.CashMovements
-            .Where(m => m.CashRegisterId == cashId)
+            .Where(m => m.CashRegisterId == cashId && m.DeletedAt == null)
             .OrderByDescending(m => m.OccurredAt)
             .AsEnumerable()
             .Select(m => new CashMovementDto(
@@ -559,7 +650,7 @@ public sealed class CashRegisterService
             .ToList();
 
         var cashSales = payments.Where(p => p.Method == PaymentMethod.Cash).Sum(p => p.Amount);
-        var movements = _db.CashMovements.Where(m => m.CashRegisterId == cash.Id).ToList();
+        var movements = _db.CashMovements.Where(m => m.CashRegisterId == cash.Id && m.DeletedAt == null).ToList();
         var supplies = movements.Where(m => m.Type == CashMovementType.Supply).Sum(m => m.Amount);
         var withdrawals = movements.Where(m => m.Type == CashMovementType.Withdrawal).Sum(m => m.Amount);
 
@@ -592,6 +683,70 @@ public sealed class CashRegisterService
         return GetSummaryAsync(_session.OpenCashRegister!.Id, cancellationToken)!;
     }
 
+    public Task<IReadOnlyList<CashSessionListItemDto>> ListSessionsAsync(CancellationToken cancellationToken = default)
+    {
+        EnsureSession();
+        var terminalId = _session.CurrentTerminal!.Id;
+        var operators = _db.Users.ToDictionary(u => u.Id, u => u.Name);
+
+        var items = _db.CashRegisters
+            .Where(c => c.TerminalId == terminalId && c.DeletedAt == null)
+            .OrderByDescending(c => c.OpenedAt)
+            .AsEnumerable()
+            .Select(c =>
+            {
+                var isOpen = c.Status == CashRegisterStatus.Open;
+                var operatorName = operators.GetValueOrDefault(c.OperatorId, "—");
+                var (periodPrefix, statusText) = FormatSessionParts(c.OpenedAt, c.ClosedAt, isOpen);
+                return new CashSessionListItemDto(
+                    c.Id,
+                    c.OpenedAt,
+                    c.ClosedAt,
+                    operatorName,
+                    isOpen,
+                    periodPrefix,
+                    statusText,
+                    $"Operador: {operatorName}");
+            })
+            .ToList();
+
+        return Task.FromResult<IReadOnlyList<CashSessionListItemDto>>(items);
+    }
+
+    public Task<CashSessionDetailDto?> GetSessionDetailAsync(Guid cashRegisterId, CancellationToken cancellationToken = default)
+    {
+        EnsureSession();
+        var cash = _db.CashRegisters.FirstOrDefault(c => c.Id == cashRegisterId && c.DeletedAt == null);
+        if (cash is null || cash.TerminalId != _session.CurrentTerminal!.Id)
+            return Task.FromResult<CashSessionDetailDto?>(null);
+
+        return Task.FromResult<CashSessionDetailDto?>(BuildSessionDetail(cash));
+    }
+
+    public async Task RemoveMovementAsync(Guid cashRegisterId, Guid movementId, CancellationToken cancellationToken = default)
+    {
+        EnsureOpenCash();
+        var cash = _session.OpenCashRegister!;
+        if (cash.Id != cashRegisterId)
+            throw new DomainException("Só é possível excluir movimentação do caixa aberto.");
+
+        var movement = _db.CashMovements.FirstOrDefault(m =>
+            m.Id == movementId && m.CashRegisterId == cash.Id && m.DeletedAt == null)
+            ?? throw new DomainException("Movimentação não encontrada.");
+
+        cash.RemoveMovement(movement);
+        _db.Remove(movement);
+
+        await _audit.LogAsync(
+            "CASH_MOVEMENT_DELETE",
+            "CashMovement",
+            movement.Id,
+            $"{movement.Type}: {movement.Amount:C} — {movement.Reason}",
+            cancellationToken);
+
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
     private Task<CashRegisterSummaryDto> GetSummaryAsync(Guid cashRegisterId, CancellationToken cancellationToken)
     {
         var cash = _db.CashRegisters.First(c => c.Id == cashRegisterId);
@@ -610,7 +765,7 @@ public sealed class CashRegisterService
         var cardSales = payments.Where(p => p.Method is PaymentMethod.DebitCard or PaymentMethod.CreditCard).Sum(p => p.Amount);
         var pixSales = payments.Where(p => p.Method == PaymentMethod.Pix).Sum(p => p.Amount);
 
-        var movements = _db.CashMovements.Where(m => m.CashRegisterId == cash.Id).ToList();
+        var movements = _db.CashMovements.Where(m => m.CashRegisterId == cash.Id && m.DeletedAt == null).ToList();
         var supplies = movements.Where(m => m.Type == CashMovementType.Supply).Sum(m => m.Amount);
         var withdrawals = movements.Where(m => m.Type == CashMovementType.Withdrawal).Sum(m => m.Amount);
         var expected = cash.OpeningAmount + cashSales + supplies - withdrawals;
@@ -628,6 +783,86 @@ public sealed class CashRegisterService
             withdrawals,
             expected));
     }
+
+    private CashSessionDetailDto BuildSessionDetail(Domain.Entities.CashRegister cash)
+    {
+        var operatorName = _db.Users.FirstOrDefault(u => u.Id == cash.OperatorId)?.Name ?? "—";
+        var terminalCode = _db.Terminals.FirstOrDefault(t => t.Id == cash.TerminalId)?.Code ?? "—";
+        var operators = _db.Users.ToDictionary(u => u.Id, u => u.Name);
+
+        var completedSales = _db.Sales
+            .Where(s => s.CashRegisterId == cash.Id && s.Status == SaleStatus.Completed)
+            .ToList();
+        var saleIds = completedSales.Select(s => s.Id).ToHashSet();
+        var payments = _db.Payments
+            .Where(p => saleIds.Contains(p.SaleId) && p.Status == PaymentStatus.Confirmed)
+            .ToList();
+
+        var cashSales = payments.Where(p => p.Method == PaymentMethod.Cash).Sum(p => p.Amount);
+        var debitSales = payments.Where(p => p.Method == PaymentMethod.DebitCard).Sum(p => p.Amount);
+        var creditSales = payments.Where(p => p.Method == PaymentMethod.CreditCard).Sum(p => p.Amount);
+        var pixSales = payments.Where(p => p.Method == PaymentMethod.Pix).Sum(p => p.Amount);
+        var totalSold = payments.Sum(p => p.Amount);
+
+        var movements = _db.CashMovements
+            .Where(m => m.CashRegisterId == cash.Id && m.DeletedAt == null)
+            .OrderBy(m => m.OccurredAt)
+            .ToList();
+        var supplies = movements.Where(m => m.Type == CashMovementType.Supply).Sum(m => m.Amount);
+        var withdrawals = movements.Where(m => m.Type == CashMovementType.Withdrawal).Sum(m => m.Amount);
+        var cashBalance = decimal.Round(cash.OpeningAmount + cashSales + supplies - withdrawals, 2);
+        var generalBalance = decimal.Round(cash.OpeningAmount + totalSold + supplies - withdrawals, 2);
+
+        return new CashSessionDetailDto(
+            cash.Id,
+            cash.OpenedAt,
+            cash.ClosedAt,
+            cash.Status == CashRegisterStatus.Open,
+            operatorName,
+            terminalCode,
+            cash.OpeningAmount,
+            cashSales,
+            debitSales,
+            creditSales,
+            pixSales,
+            totalSold,
+            supplies,
+            withdrawals,
+            cashBalance,
+            generalBalance,
+            ToSessionMovements(movements, CashMovementType.Withdrawal, operators),
+            ToSessionMovements(movements, CashMovementType.Supply, operators));
+    }
+
+    private static IReadOnlyList<CashSessionMovementDto> ToSessionMovements(
+        IEnumerable<Domain.Entities.CashMovement> movements,
+        CashMovementType type,
+        IReadOnlyDictionary<Guid, string> operators)
+    {
+        return movements
+            .Where(m => m.Type == type)
+            .Select(m => new CashSessionMovementDto(
+                m.Id,
+                m.Amount,
+                m.Reason,
+                m.OccurredAt,
+                operators.GetValueOrDefault(m.OperatorId, "—")))
+            .ToList();
+    }
+
+    private static (string PeriodPrefix, string StatusText) FormatSessionParts(DateTime openedAt, DateTime? closedAt, bool isOpen)
+    {
+        var opened = ToLocal(openedAt);
+        var status = isOpen || closedAt is null
+            ? "aberto"
+            : ToLocal(closedAt.Value).ToString("dd/MM/yyyy HH:mm");
+        return ($"{opened:dd/MM/yyyy HH:mm} — ", status);
+    }
+
+    private static DateTime ToLocal(DateTime value)
+        => value.Kind == DateTimeKind.Local
+            ? value
+            : DateTime.SpecifyKind(value, DateTimeKind.Utc).ToLocalTime();
 
     private void EnsureSession()
     {
@@ -861,8 +1096,12 @@ public sealed class SaleService
         if (filter.OperatorId.HasValue && filter.OperatorId.Value != Guid.Empty)
             query = query.Where(s => s.OperatorId == filter.OperatorId.Value);
 
-        if (filter.TerminalId.HasValue && filter.TerminalId.Value != Guid.Empty)
-            query = query.Where(s => s.TerminalId == filter.TerminalId.Value);
+        var terminalId = filter.TerminalId;
+        if ((terminalId is null || terminalId == Guid.Empty) && _session.CurrentTerminal is not null)
+            terminalId = _session.CurrentTerminal.Id;
+
+        if (terminalId.HasValue && terminalId.Value != Guid.Empty)
+            query = query.Where(s => s.TerminalId == terminalId.Value);
 
         if (filter.Status.HasValue)
             query = query.Where(s => s.Status == filter.Status.Value);

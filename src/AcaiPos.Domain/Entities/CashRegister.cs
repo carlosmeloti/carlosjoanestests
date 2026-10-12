@@ -60,6 +60,16 @@ public class CashRegister : AuditableEntity
         return movement;
     }
 
+    public void RemoveMovement(CashMovement movement)
+    {
+        EnsureOpen();
+        if (movement.CashRegisterId != Id)
+            throw new DomainException("Movimentação não pertence a este caixa.");
+
+        _movements.Remove(movement);
+        MarkUpdated();
+    }
+
     public void Close(
         Guid closedByOperatorId,
         decimal countedAmount,

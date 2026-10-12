@@ -153,6 +153,10 @@ public sealed class MainViewModel : ObservableObject
                 await PrintCurrentTicketAsync();
             });
 
+        CashSession = new CashSessionViewModel(
+            cashRegisterService,
+            msg => StatusMessage = msg);
+
         LoginCommand = new RelayCommand(async _ => await LoginAsync(), _ => !IsAuthenticated);
         LogoutCommand = new RelayCommand(async _ => await LogoutAsync(), _ => IsAuthenticated);
         OpenCashCommand = new RelayCommand(_ =>
@@ -199,6 +203,7 @@ public sealed class MainViewModel : ObservableObject
         GoToCatalogCommand = new RelayCommand(async _ => await NavigateToCatalogAsync(), _ => IsAuthenticated && CanManageCatalog);
         GoToUsersCommand = new RelayCommand(async _ => await NavigateToUsersAsync(), _ => IsAuthenticated && CanManageUsers);
         GoToHistoryCommand = new RelayCommand(async _ => await NavigateToHistoryAsync(), _ => IsAuthenticated);
+        GoToCashSessionCommand = new RelayCommand(async _ => await NavigateToCashSessionAsync(), _ => IsAuthenticated);
         OpenSupplyCommand = new RelayCommand(async _ => await OpenMovementPanelAsync(CashMovementType.Supply), _ => IsCashOpen);
         OpenWithdrawalCommand = new RelayCommand(async _ => await OpenMovementPanelAsync(CashMovementType.Withdrawal), _ => IsCashOpen);
         CancelCashMovementCommand = new RelayCommand(_ => ShowCashMovementPanel = false);
@@ -223,6 +228,7 @@ public sealed class MainViewModel : ObservableObject
     public CatalogManagementViewModel Catalog { get; }
     public UserManagementViewModel Users { get; }
     public SalesHistoryViewModel History { get; }
+    public CashSessionViewModel CashSession { get; }
 
     public ObservableCollection<CategoryDto> Categories { get; } = [];
     public ObservableCollection<ProductDto> Products { get; } = [];
@@ -265,6 +271,7 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand GoToCatalogCommand { get; }
     public RelayCommand GoToUsersCommand { get; }
     public RelayCommand GoToHistoryCommand { get; }
+    public RelayCommand GoToCashSessionCommand { get; }
     public RelayCommand OpenSupplyCommand { get; }
     public RelayCommand OpenWithdrawalCommand { get; }
     public RelayCommand CancelCashMovementCommand { get; }
@@ -295,6 +302,7 @@ public sealed class MainViewModel : ObservableObject
             GoToCatalogCommand.RaiseCanExecuteChanged();
             GoToUsersCommand.RaiseCanExecuteChanged();
             GoToHistoryCommand.RaiseCanExecuteChanged();
+            GoToCashSessionCommand.RaiseCanExecuteChanged();
             OpenReprintCommand.RaiseCanExecuteChanged();
             ToggleCashMenuCommand.RaiseCanExecuteChanged();
             RaisePropertyChanged(nameof(CatalogButtonVisibility));
@@ -330,8 +338,10 @@ public sealed class MainViewModel : ObservableObject
     public string CatalogScreenVisibility => CurrentScreen == "Catalog" ? "Visible" : "Collapsed";
     public string UsersScreenVisibility => CurrentScreen == "Users" ? "Visible" : "Collapsed";
     public string HistoryScreenVisibility => CurrentScreen == "History" ? "Visible" : "Collapsed";
+    public string CashSessionScreenVisibility => CurrentScreen == "CashSession" ? "Visible" : "Collapsed";
     public bool IsSaleScreen => CurrentScreen == "Sale";
     public bool IsHistoryScreen => CurrentScreen == "History";
+    public bool IsCashSessionScreen => CurrentScreen == "CashSession";
     public bool IsCatalogScreen => CurrentScreen == "Catalog";
     public bool IsUsersScreen => CurrentScreen == "Users";
 
@@ -346,8 +356,10 @@ public sealed class MainViewModel : ObservableObject
             RaisePropertyChanged(nameof(CatalogScreenVisibility));
             RaisePropertyChanged(nameof(UsersScreenVisibility));
             RaisePropertyChanged(nameof(HistoryScreenVisibility));
+            RaisePropertyChanged(nameof(CashSessionScreenVisibility));
             RaisePropertyChanged(nameof(IsSaleScreen));
             RaisePropertyChanged(nameof(IsHistoryScreen));
+            RaisePropertyChanged(nameof(IsCashSessionScreen));
             RaisePropertyChanged(nameof(IsCatalogScreen));
             RaisePropertyChanged(nameof(IsUsersScreen));
         }
@@ -835,6 +847,25 @@ public sealed class MainViewModel : ObservableObject
         StatusMessage = "Histórico de vendas.";
     }
 
+    private async Task NavigateToCashSessionAsync()
+    {
+        CurrentScreen = "CashSession";
+        ShowCashOpenPanel = false;
+        ShowCashClosePanel = false;
+        ShowCashMovementPanel = false;
+        ShowTicketPanel = false;
+        ShowReprintPanel = false;
+        PaymentPanelVisibility = "Collapsed";
+        await CashSession.LoadAsync(resetToCurrentMonth: true);
+        StatusMessage = CashSession.Message;
+    }
+
+    private async Task RefreshCashSessionIfVisibleAsync()
+    {
+        if (CurrentScreen == "CashSession")
+            await CashSession.LoadAsync();
+    }
+
     private async Task OpenMovementPanelAsync(CashMovementType type)
     {
         ShowCashMenu = false;
@@ -870,6 +901,7 @@ public sealed class MainViewModel : ObservableObject
             StatusMessage = $"{label} de {CashMovementAmount:C} registrada.";
             ShowCashMovementPanel = false;
             await RefreshCashMovementContextAsync();
+            await RefreshCashSessionIfVisibleAsync();
         }
         catch (DomainException ex)
         {
@@ -907,6 +939,7 @@ public sealed class MainViewModel : ObservableObject
             IsCashOpen = true;
             ShowCashOpenPanel = false;
             StatusMessage = $"Caixa aberto com fundo de {OpeningAmount:C}.";
+            await RefreshCashSessionIfVisibleAsync();
         }
         catch (DomainException ex)
         {
@@ -949,6 +982,7 @@ public sealed class MainViewModel : ObservableObject
             RefreshCartTotals();
             StatusMessage =
                 $"Caixa fechado. Diferença: {result.DifferenceAmount:C} (contado {result.CountedAmount:C} / esperado {result.ExpectedAmount:C}).";
+            await RefreshCashSessionIfVisibleAsync();
         }
         catch (DomainException ex)
         {

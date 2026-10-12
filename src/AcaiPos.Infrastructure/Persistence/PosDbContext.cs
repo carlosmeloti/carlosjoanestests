@@ -15,6 +15,7 @@ public sealed class PosDbContext : DbContext, IPosDbContext
     public DbSet<Terminal> Terminals => Set<Terminal>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Product> Products => Set<Product>();
+    public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
     public DbSet<CashRegister> CashRegisters => Set<CashRegister>();
     public DbSet<CashMovement> CashMovements => Set<CashMovement>();
     public DbSet<Sale> Sales => Set<Sale>();
@@ -28,6 +29,7 @@ public sealed class PosDbContext : DbContext, IPosDbContext
     IQueryable<Terminal> IPosDbContext.Terminals => Terminals;
     IQueryable<Category> IPosDbContext.Categories => Categories;
     IQueryable<Product> IPosDbContext.Products => Products;
+    IQueryable<ProductCategory> IPosDbContext.ProductCategories => ProductCategories;
     IQueryable<CashRegister> IPosDbContext.CashRegisters => CashRegisters;
     IQueryable<CashMovement> IPosDbContext.CashMovements => CashMovements;
     IQueryable<Sale> IPosDbContext.Sales => Sales;
@@ -35,6 +37,9 @@ public sealed class PosDbContext : DbContext, IPosDbContext
     IQueryable<Payment> IPosDbContext.Payments => Payments;
     IQueryable<StockMovement> IPosDbContext.StockMovements => StockMovements;
     IQueryable<AuditEntry> IPosDbContext.AuditEntries => AuditEntries;
+
+    public void LoadProductCategories(Product product)
+        => Entry(product).Collection(p => p.Categories).Load();
 
     public new void Add<T>(T entity) where T : class => Set<T>().Add(entity);
 

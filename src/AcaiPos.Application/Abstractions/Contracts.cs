@@ -11,6 +11,9 @@ public interface IPosDbContext
     IQueryable<Terminal> Terminals { get; }
     IQueryable<Category> Categories { get; }
     IQueryable<Product> Products { get; }
+    IQueryable<ProductCategory> ProductCategories { get; }
+
+    void LoadProductCategories(Product product);
     IQueryable<CashRegister> CashRegisters { get; }
     IQueryable<CashMovement> CashMovements { get; }
     IQueryable<Sale> Sales { get; }

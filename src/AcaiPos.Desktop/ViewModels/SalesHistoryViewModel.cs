@@ -33,7 +33,11 @@ public sealed class SalesHistoryViewModel : ObservableObject
     private PaymentFilterOption? _selectedPayment;
     private string _searchText = string.Empty;
     private string _message = "Selecione o período e filtre as vendas.";
-    private string _totalsText = string.Empty;
+    private string _salesCountLabel = "0";
+    private string _completedCountLabel = "0";
+    private string _cancelledCountLabel = "0";
+    private string _completedTotalLabel = 0m.ToString("C");
+    private string _averageTicketLabel = 0m.ToString("C");
     private SaleHistoryItemDto? _selectedSale;
     private string _detailText = string.Empty;
     private string _dayReportText = string.Empty;
@@ -154,10 +158,34 @@ public sealed class SalesHistoryViewModel : ObservableObject
         set => SetProperty(ref _message, value);
     }
 
-    public string TotalsText
+    public string SalesCountLabel
     {
-        get => _totalsText;
-        set => SetProperty(ref _totalsText, value);
+        get => _salesCountLabel;
+        private set => SetProperty(ref _salesCountLabel, value);
+    }
+
+    public string CompletedCountLabel
+    {
+        get => _completedCountLabel;
+        private set => SetProperty(ref _completedCountLabel, value);
+    }
+
+    public string CancelledCountLabel
+    {
+        get => _cancelledCountLabel;
+        private set => SetProperty(ref _cancelledCountLabel, value);
+    }
+
+    public string CompletedTotalLabel
+    {
+        get => _completedTotalLabel;
+        private set => SetProperty(ref _completedTotalLabel, value);
+    }
+
+    public string AverageTicketLabel
+    {
+        get => _averageTicketLabel;
+        private set => SetProperty(ref _averageTicketLabel, value);
     }
 
     public SaleHistoryItemDto? SelectedSale
@@ -286,10 +314,11 @@ public sealed class SalesHistoryViewModel : ObservableObject
                 Sales.Add(item);
 
             var totals = await _saleService.GetHistoryTotalsAsync(items);
-            TotalsText =
-                $"{totals.Count} venda(s) · {totals.CompletedCount} concluída(s) · " +
-                $"{totals.CancelledCount} cancelada(s) · Total {totals.CompletedTotal:C} · " +
-                $"Ticket médio {totals.AverageTicket:C}";
+            SalesCountLabel = totals.Count.ToString();
+            CompletedCountLabel = totals.CompletedCount.ToString();
+            CancelledCountLabel = totals.CancelledCount.ToString();
+            CompletedTotalLabel = totals.CompletedTotal.ToString("C");
+            AverageTicketLabel = totals.AverageTicket.ToString("C");
 
             Message = items.Count == 0
                 ? "Nenhuma venda encontrada para o filtro."

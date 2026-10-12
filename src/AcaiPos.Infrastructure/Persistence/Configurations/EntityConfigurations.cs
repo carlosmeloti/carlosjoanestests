@@ -83,7 +83,24 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(x => x.UnitOfMeasure).HasMaxLength(10).IsRequired();
         builder.HasIndex(x => x.Sku).IsUnique();
         builder.HasIndex(x => x.Barcode);
-        builder.HasOne(x => x.Category).WithMany().HasForeignKey(x => x.CategoryId);
+        builder.HasMany(x => x.Categories)
+            .WithOne()
+            .HasForeignKey(x => x.ProductId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(x => x.Categories).UsePropertyAccessMode(PropertyAccessMode.Field);
+    }
+}
+
+internal sealed class ProductCategoryConfiguration : IEntityTypeConfiguration<ProductCategory>
+{
+    public void Configure(EntityTypeBuilder<ProductCategory> builder)
+    {
+        builder.ToTable("ProductCategories");
+        builder.HasKey(x => new { x.ProductId, x.CategoryId });
+        builder.HasOne<Category>()
+            .WithMany()
+            .HasForeignKey(x => x.CategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }
 

@@ -16,7 +16,7 @@ public sealed record ProductDto(
     string Name,
     string Sku,
     string? Barcode,
-    Guid CategoryId,
+    IReadOnlyList<Guid> CategoryIds,
     string CategoryName,
     decimal SalePrice,
     decimal StockQuantity,
@@ -27,7 +27,7 @@ public sealed record ProductManageDto(
     string Name,
     string Sku,
     string? Barcode,
-    Guid CategoryId,
+    IReadOnlyList<Guid> CategoryIds,
     string CategoryName,
     decimal SalePrice,
     decimal? CostPrice,
@@ -45,7 +45,7 @@ public sealed record SaveProductRequest(
     string Name,
     string Sku,
     string? Barcode,
-    Guid CategoryId,
+    IReadOnlyList<Guid> CategoryIds,
     decimal SalePrice,
     decimal? CostPrice,
     decimal StockQuantity,
@@ -181,6 +181,43 @@ public sealed record CashRegisterSummaryDto(
     decimal Supplies,
     decimal Withdrawals,
     decimal ExpectedCash);
+
+public sealed record CashSessionListItemDto(
+    Guid Id,
+    DateTime OpenedAt,
+    DateTime? ClosedAt,
+    string OperatorName,
+    bool IsOpen,
+    string PeriodPrefix,
+    string StatusText,
+    string OperatorCaption);
+
+public sealed record CashSessionMovementDto(
+    Guid Id,
+    decimal Amount,
+    string Reason,
+    DateTime OccurredAt,
+    string OperatorName);
+
+public sealed record CashSessionDetailDto(
+    Guid Id,
+    DateTime OpenedAt,
+    DateTime? ClosedAt,
+    bool IsOpen,
+    string OperatorName,
+    string TerminalCode,
+    decimal OpeningAmount,
+    decimal CashSales,
+    decimal DebitSales,
+    decimal CreditSales,
+    decimal PixSales,
+    decimal TotalSold,
+    decimal Supplies,
+    decimal Withdrawals,
+    decimal CashBalance,
+    decimal GeneralBalance,
+    IReadOnlyList<CashSessionMovementDto> WithdrawalsList,
+    IReadOnlyList<CashSessionMovementDto> SuppliesList);
 
 public sealed record CloseCashRegisterResultDto(
     Guid Id,
