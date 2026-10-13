@@ -42,6 +42,8 @@ public sealed class TextTicketFormatter : ITicketFormatter
         sb.AppendLine(Pair("Subtotal", ticket.Subtotal));
         if (ticket.DiscountAmount > 0)
             sb.AppendLine(Pair("Desconto", ticket.DiscountAmount));
+        if (ticket.SurchargeAmount > 0)
+            sb.AppendLine(Pair("Acréscimo", ticket.SurchargeAmount));
         sb.AppendLine(Pair("TOTAL", ticket.Total));
         sb.AppendLine(new string('-', 42));
 

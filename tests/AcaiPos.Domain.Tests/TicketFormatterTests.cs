@@ -21,6 +21,7 @@ public class TicketFormatterTests
             SaleStatus.Completed,
             50m,
             0m,
+            0m,
             50m,
             10m,
             [

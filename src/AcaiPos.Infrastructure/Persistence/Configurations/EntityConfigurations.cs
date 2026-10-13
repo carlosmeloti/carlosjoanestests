@@ -147,6 +147,7 @@ internal sealed class SaleConfiguration : IEntityTypeConfiguration<Sale>
         builder.ConfigureAuditable();
         builder.Property(x => x.Subtotal).HasPrecision(18, 2);
         builder.Property(x => x.DiscountAmount).HasPrecision(18, 2);
+        builder.Property(x => x.SurchargeAmount).HasPrecision(18, 2);
         builder.Property(x => x.Total).HasPrecision(18, 2);
         builder.Property(x => x.Status).HasConversion<int>();
         builder.Property(x => x.Origin).HasConversion<int>();

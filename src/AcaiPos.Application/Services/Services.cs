@@ -928,6 +928,7 @@ public sealed class SaleService
         decimal discountAmount = 0,
         string? discountAuthorizerUsername = null,
         string? discountAuthorizerPin = null,
+        decimal surchargeAmount = 0,
         CancellationToken cancellationToken = default)
     {
         if (!_session.IsAuthenticated || _session.CurrentTerminal is null)
@@ -957,8 +958,14 @@ public sealed class SaleService
             sale.AddItem(product, cartItem.Quantity);
         }
 
+        if (surchargeAmount < 0)
+            throw new DomainException("Acréscimo não pode ser negativo.");
+
         if (discountAmount > 0)
             sale.ApplyDiscount(discountAmount);
+
+        if (surchargeAmount > 0)
+            sale.ApplySurcharge(surchargeAmount);
 
         var paymentSum = decimal.Round(payments.Sum(p => p.Amount), 2);
         if (Math.Abs(paymentSum - sale.Total) > 0.009m)
@@ -1194,6 +1201,7 @@ public sealed class SaleService
             sale.SoldAt,
             sale.Subtotal,
             sale.DiscountAmount,
+            sale.SurchargeAmount,
             sale.Total,
             sale.Status,
             StatusLabel(sale.Status),
@@ -1297,6 +1305,7 @@ public sealed class SaleService
             cancelled,
             completed.Sum(s => s.Subtotal),
             completed.Sum(s => s.DiscountAmount),
+            completed.Sum(s => s.SurchargeAmount),
             completed.Sum(s => s.Total),
             byPayment,
             byOperator));

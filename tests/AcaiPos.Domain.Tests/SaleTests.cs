@@ -39,6 +39,26 @@ public class SaleTests
     }
 
     [Fact]
+    public void Surcharge_Increases_Total_After_Discount()
+    {
+        var category = Category.Create("Bowls");
+        var product = Product.Create("Açaí 500ml", "ACAI-500", [category.Id], 100m);
+        var sale = Sale.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "T20260101-0004");
+
+        sale.AddItem(product, 1);
+        sale.ApplyDiscount(10m);
+        sale.ApplySurcharge(5m);
+
+        Assert.Equal(95m, sale.Total);
+
+        sale.AddPayment(PaymentMethod.Pix, 95m);
+        sale.Complete();
+
+        Assert.Equal(SaleStatus.Completed, sale.Status);
+        Assert.Equal(5m, sale.SurchargeAmount);
+    }
+
+    [Fact]
     public void Inactive_Product_Cannot_Be_Sold()
     {
         var category = Category.Create("Bowls");

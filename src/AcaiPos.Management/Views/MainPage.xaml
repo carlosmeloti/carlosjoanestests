@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:models="clr-namespace:AcaiPos.Management.Models"
+             xmlns:vm="clr-namespace:AcaiPos.Management.ViewModels"
+             x:Class="AcaiPos.Management.Views.MainPage"
+             x:DataType="vm:MainViewModel"
+             BackgroundColor="{StaticResource BgDeep}">
+
+    <Grid x:Name="Root">
+        <Grid ColumnDefinitions="248,*" RowDefinitions="Auto,*" RowSpacing="0" ColumnSpacing="0">
+            <Border Grid.Row="0"
+                    Grid.Column="0"
+                    BackgroundColor="{StaticResource BgPanel}"
+                    Stroke="{StaticResource Stroke}"
+                    StrokeThickness="0,0,1,1"
+                    Padding="12,8">
+                <VerticalStackLayout Spacing="6" HorizontalOptions="Center" VerticalOptions="Center">
+                    <Grid WidthRequest="56" HeightRequest="36" HorizontalOptions="Center">
+                        <Ellipse WidthRequest="12" HeightRequest="8" Fill="#2F9E7A" HorizontalOptions="Start" VerticalOptions="Start" Margin="6,2,0,0" />
+                        <Ellipse WidthRequest="11" HeightRequest="8" Fill="#E0A045" HorizontalOptions="End" VerticalOptions="Start" Margin="0,4,8,0" />
+                        <Ellipse WidthRequest="13" HeightRequest="9" Fill="#F4F1EC" HorizontalOptions="Center" VerticalOptions="Start" />
+                        <Border StrokeShape="RoundRectangle 0,0,16,16"
+                                BackgroundColor="#4A2A6B"
+                                Stroke="#D4583B"
+                                StrokeThickness="3"
+                                WidthRequest="48"
+                                HeightRequest="18"
+                                VerticalOptions="End"
+                                HorizontalOptions="Center" />
+                    </Grid>
+                    <Label Text="Açaí"
+                           FontSize="26"
+                           FontAttributes="Bold"
+                           TextColor="{StaticResource Accent}"
+                           HorizontalTextAlignment="Center" />
+                </VerticalStackLayout>
+            </Border>
+
+            <VerticalStackLayout Grid.Row="0" Grid.Column="1" Spacing="0">
+                <Border x:Name="MenuBarHost"
+                        BackgroundColor="{StaticResource BgPanel}"
+                        Stroke="{StaticResource Stroke}"
+                        StrokeThickness="0,0,0,1"
+                        Padding="4,0">
+                    <HorizontalStackLayout BindableLayout.ItemsSource="{Binding Menus}" Spacing="0">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="models:TopMenu">
+                                <Button Text="{Binding Title}"
+                                        Style="{StaticResource MenuCaptionButton}"
+                                        Clicked="OnMenuCaptionClicked" />
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </HorizontalStackLayout>
+                </Border>
+
+                <Grid Padding="16,10" ColumnDefinitions="Auto,*" ColumnSpacing="12" BackgroundColor="{StaticResource BgDeep}">
+                    <Border WidthRequest="36"
+                            HeightRequest="36"
+                            StrokeShape="RoundRectangle 18"
+                            StrokeThickness="0"
+                            BackgroundColor="{StaticResource BgTile}"
+                            VerticalOptions="Center">
+                        <Label Text="{Binding UserInitial}"
+                               FontAttributes="Bold"
+                               HorizontalTextAlignment="Center"
+                               VerticalTextAlignment="Center" />
+                    </Border>
+                    <VerticalStackLayout Grid.Column="1" Spacing="0" VerticalOptions="Center">
+                        <Label Text="{Binding UserName}" FontAttributes="Bold" FontSize="14" />
+                        <Label Text="outras informações" Style="{StaticResource MutedLabel}" />
+                    </VerticalStackLayout>
+                </Grid>
+
+                <Border Stroke="{StaticResource Stroke}"
+                        StrokeThickness="0,1,0,1"
+                        BackgroundColor="{StaticResource BgDeep}"
+                        Padding="16,8">
+                    <Grid ColumnDefinitions="*,Auto,180" ColumnSpacing="16">
+                        <Entry Text="{Binding SearchText}"
+                               Placeholder="Termo da pesquisa" />
+                        <HorizontalStackLayout Grid.Column="1"
+                                               Spacing="14"
+                                               VerticalOptions="Center"
+                                               RadioButtonGroup.GroupName="searchField"
+                                               RadioButtonGroup.SelectedValue="{Binding SelectedField, Mode=TwoWay}">
+                            <RadioButton Content="Id" Value="{x:Static models:SearchField.Id}" />
+                            <RadioButton Content="Nome" Value="{x:Static models:SearchField.Name}" />
+                            <RadioButton Content="CPF"
+                                         Value="{x:Static models:SearchField.Cpf}"
+                                         IsEnabled="{Binding IsCpfEnabled}" />
+                        </HorizontalStackLayout>
+                        <Picker Grid.Column="2"
+                                ItemsSource="{Binding Schemas}"
+                                SelectedItem="{Binding SelectedSchema}" />
+                    </Grid>
+                </Border>
+            </VerticalStackLayout>
+
+            <Grid Grid.Row="1"
+                  Grid.Column="0"
+                  BackgroundColor="{StaticResource BgPanel}"
+                  RowDefinitions="Auto,*">
+                <BoxView HeightRequest="1"
+                         Color="{StaticResource Stroke}"
+                         HorizontalOptions="End"
+                         WidthRequest="1"
+                         Grid.RowSpan="2"
+                         VerticalOptions="Fill" />
+                <Label Text="Atalhos"
+                       Margin="16,14,16,6"
+                       FontAttributes="Bold" />
+                <ScrollView Grid.Row="1">
+                    <VerticalStackLayout Padding="8,0,8,12"
+                                         Spacing="2"
+                                         BindableLayout.ItemsSource="{Binding Shortcuts}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="models:ShortcutItem">
+                                <VerticalStackLayout Spacing="0">
+                                    <Grid ColumnDefinitions="16,*" Padding="8,7" ColumnSpacing="6">
+                                        <Grid.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding ToggleCommand}" />
+                                        </Grid.GestureRecognizers>
+                                        <Label Text="{Binding Chevron}" TextColor="{StaticResource TextMuted}" />
+                                        <Label Grid.Column="1" Text="{Binding Title}" />
+                                    </Grid>
+                                    <VerticalStackLayout IsVisible="{Binding IsExpanded}"
+                                                         Padding="28,0,8,4"
+                                                         Spacing="0"
+                                                         BindableLayout.ItemsSource="{Binding Children}">
+                                        <BindableLayout.ItemTemplate>
+                                            <DataTemplate x:DataType="models:ShortcutItem">
+                                                <Label Text="{Binding Title}"
+                                                       TextColor="{StaticResource TextMuted}"
+                                                       Padding="8,5" />
+                                            </DataTemplate>
+                                        </BindableLayout.ItemTemplate>
+                                    </VerticalStackLayout>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </ScrollView>
+            </Grid>
+
+            <Grid Grid.Row="1"
+                  Grid.Column="1"
+                  RowDefinitions="Auto,*,Auto"
+                  Padding="16,12,16,12"
+                  RowSpacing="0">
+                <Grid ColumnDefinitions="0.7*,1.8*,1.6*,1.5*,1.4*"
+                      Padding="12,8"
+                      BackgroundColor="{StaticResource BgElevated}">
+                    <Label Text="{Binding Header0}" Style="{StaticResource GridHeader}" />
+                    <Label Grid.Column="1" Text="{Binding Header1}" Style="{StaticResource GridHeader}" />
+                    <Label Grid.Column="2" Text="{Binding Header2}" Style="{StaticResource GridHeader}" />
+                    <Label Grid.Column="3" Text="{Binding Header3}" Style="{StaticResource GridHeader}" />
+                    <Label Grid.Column="4" Text="{Binding Header4}" Style="{StaticResource GridHeader}" />
+                </Grid>
+
+                <CollectionView Grid.Row="1"
+                                ItemsSource="{Binding Rows}"
+                                SelectionMode="None">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="models:ResultRow">
+                            <Border Stroke="{StaticResource Stroke}"
+                                    StrokeThickness="0,0,0,1"
+                                    Padding="12,8"
+                                    BackgroundColor="Transparent">
+                                <Grid ColumnDefinitions="0.7*,1.8*,1.6*,1.5*,1.4*">
+                                    <Label Text="{Binding C0}" />
+                                    <Label Grid.Column="1" Text="{Binding C1}" />
+                                    <Label Grid.Column="2" Text="{Binding C2}" />
+                                    <Label Grid.Column="3" Text="{Binding C3}" />
+                                    <Label Grid.Column="4" Text="{Binding C4}" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                    <CollectionView.EmptyView>
+                        <Label Text="Nenhum resultado."
+                               Margin="12,16"
+                               TextColor="{StaticResource TextMuted}" />
+                    </CollectionView.EmptyView>
+                </CollectionView>
+
+                <Grid Grid.Row="2" ColumnDefinitions="Auto,*" Margin="0,10,0,0">
+                    <Label Text="{Binding PageSizeLabel}"
+                           Style="{StaticResource MutedLabel}"
+                           VerticalOptions="Center" />
+                    <HorizontalStackLayout Grid.Column="1"
+                                           HorizontalOptions="End"
+                                           Spacing="6"
+                                           VerticalOptions="Center">
+                        <Button Text="Anterior"
+                                Style="{StaticResource PagerButton}"
+                                Command="{Binding PreviousCommand}"
+                                IsEnabled="{Binding CanPrevious}" />
+                        <HorizontalStackLayout Spacing="4" BindableLayout.ItemsSource="{Binding PageNumbers}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="models:PageNumber">
+                                    <Button Text="{Binding Number}"
+                                            Style="{StaticResource PagerButton}"
+                                            Padding="10,6"
+                                            Command="{Binding SelectCommand}"
+                                            CommandParameter="{Binding Number}">
+                                        <Button.Triggers>
+                                            <DataTrigger TargetType="Button" Binding="{Binding IsCurrent}" Value="True">
+                                                <Setter Property="BackgroundColor" Value="{StaticResource Accent}" />
+                                                <Setter Property="TextColor" Value="White" />
+                                            </DataTrigger>
+                                        </Button.Triggers>
+                                    </Button>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </HorizontalStackLayout>
+                        <Button Text="Próxima"
+                                Style="{StaticResource PagerButton}"
+                                Command="{Binding NextCommand}"
+                                IsEnabled="{Binding CanNext}" />
+                    </HorizontalStackLayout>
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <AbsoluteLayout x:Name="MenuLayer" IsVisible="False" CascadeInputTransparent="False">
+            <Border x:Name="MenuDismiss"
+                    BackgroundColor="#01000000"
+                    StrokeThickness="0"
+                    AbsoluteLayout.LayoutBounds="0,0,1,1"
+                    AbsoluteLayout.LayoutFlags="All">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnDismissMenuTapped" />
+                </Border.GestureRecognizers>
+            </Border>
+            <Border x:Name="SubmenuPanel"
+                    BackgroundColor="{StaticResource BgElevated}"
+                    Stroke="{StaticResource Stroke}"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 4"
+                    Padding="4"
+                    AbsoluteLayout.LayoutBounds="0,0,180,40"
+                    AbsoluteLayout.LayoutFlags="None">
+                <VerticalStackLayout x:Name="SubmenuItems" Spacing="0" />
+            </Border>
+        </AbsoluteLayout>
+    </Grid>
+
+</ContentPage>

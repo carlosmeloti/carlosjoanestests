@@ -112,6 +112,7 @@ public sealed class TicketService
             sale.Status,
             sale.Subtotal,
             sale.DiscountAmount,
+            sale.SurchargeAmount,
             sale.Total,
             sale.ChangeAmount,
             items.Select(i => new TicketItemDto(

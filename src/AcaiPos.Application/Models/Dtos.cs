@@ -82,6 +82,7 @@ public sealed record SaleHistoryItemDto(
     DateTime SoldAt,
     decimal Subtotal,
     decimal DiscountAmount,
+    decimal SurchargeAmount,
     decimal Total,
     SaleStatus Status,
     string StatusLabel,
@@ -154,6 +155,7 @@ public sealed record TicketDto(
     SaleStatus Status,
     decimal Subtotal,
     decimal DiscountAmount,
+    decimal SurchargeAmount,
     decimal Total,
     decimal ChangeAmount,
     IReadOnlyList<TicketItemDto> Items,
@@ -259,6 +261,7 @@ public sealed record DayReportDto(
     int CancelledCount,
     decimal GrossTotal,
     decimal DiscountTotal,
+    decimal SurchargeTotal,
     decimal NetTotal,
     IReadOnlyList<DayReportPaymentDto> ByPaymentMethod,
     IReadOnlyList<DayReportOperatorDto> ByOperator);

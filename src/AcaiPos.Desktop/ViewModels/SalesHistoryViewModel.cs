@@ -6,18 +6,27 @@ using AcaiPos.Domain.Enums;
 
 namespace AcaiPos.Desktop.ViewModels;
 
+/// <summary>
+/// Opção do filtro de status da venda. Valor nulo significa todos os status.
+/// </summary>
 public sealed class StatusFilterOption
 {
     public string Label { get; init; } = string.Empty;
     public SaleStatus? Value { get; init; }
 }
 
+/// <summary>
+/// Opção do filtro de forma de pagamento. Valor nulo significa todas as formas.
+/// </summary>
 public sealed class PaymentFilterOption
 {
     public string Label { get; init; } = string.Empty;
     public PaymentMethod? Value { get; init; }
 }
 
+/// <summary>
+/// Histórico de vendas: filtros, totais, detalhe, reimpressão e cancelamento.
+/// </summary>
 public sealed class SalesHistoryViewModel : ObservableObject
 {
     private readonly SaleService _saleService;
@@ -48,6 +57,9 @@ public sealed class SalesHistoryViewModel : ObservableObject
     private bool _canCancelDirectly;
     private Guid? _cancelSaleId;
 
+    /// <summary>
+    /// Monta os filtros padrão e os comandos de busca, relatório, ticket e cancelamento.
+    /// </summary>
     public SalesHistoryViewModel(
         SaleService saleService,
         Action<string>? notify = null,
@@ -256,6 +268,9 @@ public sealed class SalesHistoryViewModel : ObservableObject
 
     public string AuthorizerVisibility => CanCancelDirectly ? "Collapsed" : "Visible";
 
+    /// <summary>
+    /// Carrega operadores e terminais, define a permissão de cancelamento e busca as vendas de hoje.
+    /// </summary>
     public async Task InitializeAsync()
     {
         CanCancelDirectly = _saleService.CurrentUserCanCancelSales;
@@ -275,6 +290,9 @@ public sealed class SalesHistoryViewModel : ObservableObject
         await LoadTodayAsync();
     }
 
+    /// <summary>
+    /// Restringe o período ao dia atual e executa a busca.
+    /// </summary>
     private async Task LoadTodayAsync()
     {
         FromDate = DateTime.Today;
@@ -282,6 +300,9 @@ public sealed class SalesHistoryViewModel : ObservableObject
         await SearchAsync();
     }
 
+    /// <summary>
+    /// Ajusta o período para os últimos dias informados, incluindo hoje, e executa a busca.
+    /// </summary>
     private async Task LoadLastDaysAsync(int days)
     {
         ToDate = DateTime.Today;
@@ -289,6 +310,9 @@ public sealed class SalesHistoryViewModel : ObservableObject
         await SearchAsync();
     }
 
+    /// <summary>
+    /// Consulta as vendas do filtro, atualiza totais e o resumo do dia final.
+    /// </summary>
     private async Task SearchAsync()
     {
         try
@@ -338,6 +362,9 @@ public sealed class SalesHistoryViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Monta o texto do resumo do dia da data final, por pagamento e por operador.
+    /// </summary>
     private async Task LoadDayReportAsync()
     {
         try
@@ -352,7 +379,7 @@ public sealed class SalesHistoryViewModel : ObservableObject
 
             DayReportText =
                 $"Resumo {report.Day:dd/MM}: {report.SaleCount} venda(s), {report.CancelledCount} cancelada(s), " +
-                $"bruto {report.GrossTotal:C}, descontos {report.DiscountTotal:C}, líquido {report.NetTotal:C}. " +
+                $"bruto {report.GrossTotal:C}, descontos {report.DiscountTotal:C}, acréscimos {report.SurchargeTotal:C}, líquido {report.NetTotal:C}. " +
                 $"Pagamentos: {payments}. Por operador: {operators}.";
         }
         catch (Exception ex)
@@ -361,6 +388,9 @@ public sealed class SalesHistoryViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Seleciona a venda e abre o ticket correspondente.
+    /// </summary>
     private async Task ViewDetailsAsync(SaleHistoryItemDto? item)
     {
         SelectedSale = item ?? SelectedSale;
@@ -370,6 +400,9 @@ public sealed class SalesHistoryViewModel : ObservableObject
         await _onViewTicket(SelectedSale.Id);
     }
 
+    /// <summary>
+    /// Pede a reimpressão do ticket da venda informada ou da selecionada.
+    /// </summary>
     private async Task ReprintAsync(SaleHistoryItemDto? item)
     {
         var sale = item ?? SelectedSale;
@@ -379,6 +412,9 @@ public sealed class SalesHistoryViewModel : ObservableObject
         await _onReprintTicket(sale.Id);
     }
 
+    /// <summary>
+    /// Abre o painel de cancelamento da venda concluída, pedindo autorização quando o operador não pode cancelar sozinho.
+    /// </summary>
     private void BeginCancel(SaleHistoryItemDto? item)
     {
         var sale = item ?? SelectedSale;
@@ -396,6 +432,9 @@ public sealed class SalesHistoryViewModel : ObservableObject
             : $"Cancelamento de {sale.TicketNumber} exige autorização de gerente/admin.";
     }
 
+    /// <summary>
+    /// Cancela a venda, atualiza a lista e reabre o ticket já cancelado.
+    /// </summary>
     private async Task ConfirmCancelAsync()
     {
         if (!_cancelSaleId.HasValue)
@@ -429,6 +468,9 @@ public sealed class SalesHistoryViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Fecha o painel de cancelamento e descarta motivo, PIN e venda pendente.
+    /// </summary>
     private void CloseCancelPanel()
     {
         ShowCancelPanel = false;
@@ -437,6 +479,9 @@ public sealed class SalesHistoryViewModel : ObservableObject
         _cancelSaleId = null;
     }
 
+    /// <summary>
+    /// Monta o texto do detalhe da venda, incluindo os dados de cancelamento quando houver.
+    /// </summary>
     private static string BuildDetail(SaleHistoryItemDto sale)
     {
         var local = sale.SoldAt.Kind == DateTimeKind.Utc ? sale.SoldAt.ToLocalTime() : sale.SoldAt;
@@ -450,6 +495,7 @@ public sealed class SalesHistoryViewModel : ObservableObject
             $"Pagamentos: {sale.PaymentSummary}\n" +
             $"Subtotal: {sale.Subtotal:C}\n" +
             $"Desconto: {sale.DiscountAmount:C}\n" +
+            $"Acréscimo: {sale.SurchargeAmount:C}\n" +
             $"Total: {sale.Total:C}\n" +
             $"Troco: {sale.ChangeAmount:C}";
 

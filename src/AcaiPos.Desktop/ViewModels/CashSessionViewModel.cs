@@ -7,6 +7,9 @@ using AcaiPos.Domain.Enums;
 
 namespace AcaiPos.Desktop.ViewModels;
 
+/// <summary>
+/// Linha de sangria ou suprimento exibida no detalhe do ciclo de caixa.
+/// </summary>
 public sealed class CashMovementRowViewModel
 {
     public Guid Id { get; init; }
@@ -18,6 +21,9 @@ public sealed class CashMovementRowViewModel
     public decimal Amount { get; init; }
 }
 
+/// <summary>
+/// Consulta e edição dos ciclos de caixa: período, saldos, sangrias e suprimentos.
+/// </summary>
 public sealed class CashSessionViewModel : ObservableObject
 {
     private readonly CashRegisterService _cashRegisterService;
@@ -54,6 +60,9 @@ public sealed class CashSessionViewModel : ObservableObject
     private string _supplyReason = "Reforço de troco";
     private string _deleteConfirmText = string.Empty;
 
+    /// <summary>
+    /// Liga os comandos de sangria, suprimento, exclusão e navegação de período.
+    /// </summary>
     public CashSessionViewModel(CashRegisterService cashRegisterService, Action<string>? notify = null)
     {
         _cashRegisterService = cashRegisterService;
@@ -271,6 +280,9 @@ public sealed class CashSessionViewModel : ObservableObject
         private set => SetProperty(ref _deleteConfirmText, value);
     }
 
+    /// <summary>
+    /// Carrega todos os ciclos do terminal e aplica o período visível.
+    /// </summary>
     public async Task LoadAsync(bool resetToCurrentMonth = false)
     {
         try
@@ -290,12 +302,18 @@ public sealed class CashSessionViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Volta o filtro para o mês corrente até hoje.
+    /// </summary>
     private void ApplyCurrentMonth()
     {
         SetCurrentMonthDates();
         _ = ApplyRangeAsync();
     }
 
+    /// <summary>
+    /// Ajusta o período para o dia do caixa aberto e o seleciona.
+    /// </summary>
     private void GoToOpenSession()
     {
         var open = _allSessions.FirstOrDefault(s => s.IsOpen);
@@ -320,6 +338,9 @@ public sealed class CashSessionViewModel : ObservableObject
         _ = ApplyRangeAsync();
     }
 
+    /// <summary>
+    /// Define as datas do mês sem disparar o filtro a cada atribuição.
+    /// </summary>
     private void SetCurrentMonthDates()
     {
         var today = DateTime.Today;
@@ -329,6 +350,9 @@ public sealed class CashSessionViewModel : ObservableObject
         _suppressRange = false;
     }
 
+    /// <summary>
+    /// Grava uma data do período e reaplica o filtro, salvo quando a atualização está suprimida.
+    /// </summary>
     private void SetRangeDate(ref DateTime field, DateTime value, string propertyName)
     {
         var date = value.Date;
@@ -341,6 +365,9 @@ public sealed class CashSessionViewModel : ObservableObject
             _ = ApplyRangeAsync();
     }
 
+    /// <summary>
+    /// Filtra os ciclos pelo período e recarrega o detalhe, preservando a seleção quando possível.
+    /// </summary>
     private async Task ApplyRangeAsync()
     {
         if (_toDate < _fromDate)
@@ -377,12 +404,18 @@ public sealed class CashSessionViewModel : ObservableObject
             _notify?.Invoke(Message);
     }
 
+    /// <summary>
+    /// Indica se a abertura do ciclo cai dentro do período filtrado.
+    /// </summary>
     private bool IsInRange(CashSessionListItemDto session)
     {
         var day = ToLocal(session.OpenedAt).Date;
         return day >= _fromDate && day <= _toDate;
     }
 
+    /// <summary>
+    /// Indica se existe caixa aberto fora do período, para oferecer o atalho até ele.
+    /// </summary>
     private bool OpenSessionOutsideRange()
     {
         var open = _allSessions.FirstOrDefault(s => s.IsOpen);
@@ -395,13 +428,22 @@ public sealed class CashSessionViewModel : ObservableObject
         return !IsInRange(open);
     }
 
+    /// <summary>
+    /// Primeiro dia do mês da data informada.
+    /// </summary>
     private static DateTime MonthStart(DateTime day) => new(day.Year, day.Month, 1);
 
+    /// <summary>
+    /// Converte o instante para o fuso local. Valores sem fuso são tratados como UTC.
+    /// </summary>
     private static DateTime ToLocal(DateTime value)
         => value.Kind == DateTimeKind.Local
             ? value
             : DateTime.SpecifyKind(value, DateTimeKind.Utc).ToLocalTime();
 
+    /// <summary>
+    /// Carrega saldos e movimentações do ciclo selecionado. Respostas antigas são descartadas.
+    /// </summary>
     private async Task LoadDetailAsync()
     {
         var version = ++_detailVersion;
@@ -443,6 +485,9 @@ public sealed class CashSessionViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Preenche rótulos, listas e a permissão de edição a partir do detalhe do ciclo.
+    /// </summary>
     private void ApplyDetail(CashSessionDetailDto detail)
     {
         HasSession = true;
@@ -471,6 +516,9 @@ public sealed class CashSessionViewModel : ObservableObject
         RaisePropertyChanged(nameof(ReadOnlyHintVisibility));
     }
 
+    /// <summary>
+    /// Zera o detalhe quando nenhum ciclo está selecionado.
+    /// </summary>
     private void ClearDetail()
     {
         HasSession = false;
@@ -492,6 +540,9 @@ public sealed class CashSessionViewModel : ObservableObject
         RaisePropertyChanged(nameof(ReadOnlyHintVisibility));
     }
 
+    /// <summary>
+    /// Converte uma movimentação do serviço para a linha exibida na grade.
+    /// </summary>
     private static CashMovementRowViewModel ToRow(CashSessionMovementDto movement, string kindLabel)
     {
         var when = movement.OccurredAt.Kind == DateTimeKind.Local
@@ -510,6 +561,9 @@ public sealed class CashSessionViewModel : ObservableObject
         };
     }
 
+    /// <summary>
+    /// Abre o formulário de sangria com o motivo padrão.
+    /// </summary>
     private void BeginWithdrawal()
     {
         if (!CanEditMovements)
@@ -521,6 +575,9 @@ public sealed class CashSessionViewModel : ObservableObject
         ShowWithdrawalForm = true;
     }
 
+    /// <summary>
+    /// Abre o formulário de suprimento com o motivo padrão.
+    /// </summary>
     private void BeginSupply()
     {
         if (!CanEditMovements)
@@ -532,6 +589,9 @@ public sealed class CashSessionViewModel : ObservableObject
         ShowSupplyForm = true;
     }
 
+    /// <summary>
+    /// Valida valor e motivo e registra a sangria ou o suprimento no caixa aberto.
+    /// </summary>
     private async Task ConfirmMovementAsync(CashMovementType type)
     {
         if (_selectedSession is null || !CanEditMovements)
@@ -564,6 +624,9 @@ public sealed class CashSessionViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Pede confirmação antes de excluir a movimentação.
+    /// </summary>
     private void BeginDelete(CashMovementRowViewModel? row)
     {
         if (row is null || !CanEditMovements)
@@ -575,6 +638,9 @@ public sealed class CashSessionViewModel : ObservableObject
         ConfirmDeleteCommand.RaiseCanExecuteChanged();
     }
 
+    /// <summary>
+    /// Exclui a movimentação pendente e recarrega os ciclos.
+    /// </summary>
     private async Task ConfirmDeleteAsync()
     {
         if (_pendingDelete is null || _selectedSession is null || !CanEditMovements)
@@ -593,6 +659,9 @@ public sealed class CashSessionViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Fecha a confirmação de exclusão e descarta a movimentação pendente.
+    /// </summary>
     private void CloseDeleteConfirm()
     {
         _pendingDelete = null;
@@ -601,6 +670,9 @@ public sealed class CashSessionViewModel : ObservableObject
         ConfirmDeleteCommand.RaiseCanExecuteChanged();
     }
 
+    /// <summary>
+    /// Fecha os formulários de sangria, suprimento e exclusão.
+    /// </summary>
     private void CloseForms()
     {
         ShowWithdrawalForm = false;
@@ -608,8 +680,14 @@ public sealed class CashSessionViewModel : ObservableObject
         CloseDeleteConfirm();
     }
 
+    /// <summary>
+    /// Atualiza a mensagem da tela sem ecoar no status geral.
+    /// </summary>
     private void SetScreenMessage(string message) => Message = message;
 
+    /// <summary>
+    /// Atualiza a mensagem da tela e a repete no status da janela principal.
+    /// </summary>
     private void Publish(string message)
     {
         Message = message;

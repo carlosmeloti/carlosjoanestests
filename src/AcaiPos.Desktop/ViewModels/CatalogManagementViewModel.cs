@@ -5,6 +5,9 @@ using AcaiPos.Domain.Common;
 
 namespace AcaiPos.Desktop.ViewModels;
 
+/// <summary>
+/// Cadastro de produtos e categorias: abas, filtros, formulários e desativação.
+/// </summary>
 public sealed class CatalogManagementViewModel : ObservableObject
 {
     private readonly CatalogService _catalogService;
@@ -33,6 +36,9 @@ public sealed class CatalogManagementViewModel : ObservableObject
     private string _productUnit = "UN";
     private bool _productIsActive = true;
 
+    /// <summary>
+    /// Liga os comandos de abas, busca e edição de categorias e produtos.
+    /// </summary>
     public CatalogManagementViewModel(
         CatalogService catalogService,
         Action<string>? notify = null,
@@ -193,6 +199,9 @@ public sealed class CatalogManagementViewModel : ObservableObject
         set => SetProperty(ref _productIsActive, value);
     }
 
+    /// <summary>
+    /// Carrega categorias e produtos e limpa os dois formulários.
+    /// </summary>
     public async Task LoadAsync()
     {
         await LoadCategoriesAsync();
@@ -202,6 +211,9 @@ public sealed class CatalogManagementViewModel : ObservableObject
         EditorMessage = "Catálogo carregado.";
     }
 
+    /// <summary>
+    /// Recarrega a lista de categorias e as opções do filtro, incluindo "Todas".
+    /// </summary>
     private async Task LoadCategoriesAsync()
     {
         ManagedCategories.Clear();
@@ -217,6 +229,9 @@ public sealed class CatalogManagementViewModel : ObservableObject
         FilterCategoryId ??= Guid.Empty;
     }
 
+    /// <summary>
+    /// Recarrega os produtos conforme categoria, texto e inclusão de inativos.
+    /// </summary>
     private async Task LoadProductsAsync()
     {
         ManagedProducts.Clear();
@@ -229,6 +244,9 @@ public sealed class CatalogManagementViewModel : ObservableObject
             ManagedProducts.Add(item);
     }
 
+    /// <summary>
+    /// Limpa o formulário para uma categoria nova, sugerindo a próxima ordem.
+    /// </summary>
     private void ResetCategoryForm()
     {
         _editingCategoryId = null;
@@ -240,6 +258,9 @@ public sealed class CatalogManagementViewModel : ObservableObject
         EditorMessage = "Preencha os dados da categoria.";
     }
 
+    /// <summary>
+    /// Preenche o formulário com a categoria selecionada.
+    /// </summary>
     private void BeginEditCategory(CategoryManageDto? category)
     {
         if (category is null)
@@ -254,6 +275,9 @@ public sealed class CatalogManagementViewModel : ObservableObject
         EditorMessage = $"Editando categoria {category.Name}.";
     }
 
+    /// <summary>
+    /// Cria ou atualiza a categoria e avisa a tela de venda para recarregar o catálogo.
+    /// </summary>
     private async Task SaveCategoryAsync()
     {
         try
@@ -287,6 +311,9 @@ public sealed class CatalogManagementViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Desativa a categoria e recarrega listas e tela de venda.
+    /// </summary>
     private async Task DeactivateCategoryAsync(CategoryManageDto? category)
     {
         if (category is null)
@@ -310,6 +337,9 @@ public sealed class CatalogManagementViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Limpa o formulário para um produto novo e reconstrói as categorias marcáveis.
+    /// </summary>
     private void ResetProductForm()
     {
         _editingProductId = null;
@@ -326,6 +356,9 @@ public sealed class CatalogManagementViewModel : ObservableObject
         EditorMessage = "Preencha os dados do produto.";
     }
 
+    /// <summary>
+    /// Preenche o formulário com o produto selecionado e marca as categorias dele.
+    /// </summary>
     private void BeginEditProduct(ProductManageDto? product)
     {
         if (product is null)
@@ -346,6 +379,9 @@ public sealed class CatalogManagementViewModel : ObservableObject
         EditorMessage = $"Editando produto {product.Name}.";
     }
 
+    /// <summary>
+    /// Cria ou atualiza o produto com as categorias marcadas e avisa a tela de venda.
+    /// </summary>
     private async Task SaveProductAsync()
     {
         try
@@ -383,6 +419,9 @@ public sealed class CatalogManagementViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Desativa o produto e recarrega a lista e a tela de venda.
+    /// </summary>
     private async Task DeactivateProductAsync(ProductManageDto? product)
     {
         if (product is null)
@@ -405,6 +444,9 @@ public sealed class CatalogManagementViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Remonta as categorias do produto. Inativas só aparecem se já estiverem ligadas a ele.
+    /// </summary>
     private void RebuildProductCategoryOptions(IReadOnlyCollection<Guid>? selectedIds = null)
     {
         var selected = selectedIds?.ToHashSet() ?? [];
@@ -423,10 +465,16 @@ public sealed class CatalogManagementViewModel : ObservableObject
     }
 }
 
+/// <summary>
+/// Categoria marcável no formulário de produto.
+/// </summary>
 public sealed class ProductCategoryOption : ObservableObject
 {
     private bool _isSelected;
 
+    /// <summary>
+    /// Cria a opção com o estado inicial de seleção.
+    /// </summary>
     public ProductCategoryOption(Guid id, string name, bool isSelected)
     {
         Id = id;

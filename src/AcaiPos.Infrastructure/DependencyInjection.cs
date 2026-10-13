@@ -34,6 +34,7 @@ public static class DependencyInjection
 
         await db.Database.EnsureCreatedAsync();
         await MigrateProductCategoriesAsync(db);
+        await MigrateSaleSurchargeAsync(db);
         await SeedAsync(db, hasher);
     }
 
@@ -70,6 +71,29 @@ public static class DependencyInjection
             {
                 await ExecuteNonQueryAsync(connection, "PRAGMA foreign_keys = ON;");
             }
+        }
+        finally
+        {
+            if (shouldClose)
+                await connection.CloseAsync();
+        }
+    }
+
+    private static async Task MigrateSaleSurchargeAsync(PosDbContext db)
+    {
+        var connection = db.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+        if (shouldClose)
+            await connection.OpenAsync();
+
+        try
+        {
+            if (await HasColumnAsync(connection, "Sales", "SurchargeAmount"))
+                return;
+
+            await ExecuteNonQueryAsync(
+                connection,
+                """ALTER TABLE "Sales" ADD COLUMN "SurchargeAmount" TEXT NOT NULL DEFAULT '0.0';""");
         }
         finally
         {

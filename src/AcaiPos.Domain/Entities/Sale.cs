@@ -11,6 +11,7 @@ public class Sale : AuditableEntity
     public DateTime SoldAt { get; private set; }
     public decimal Subtotal { get; private set; }
     public decimal DiscountAmount { get; private set; }
+    public decimal SurchargeAmount { get; private set; }
     public decimal Total { get; private set; }
     public SaleStatus Status { get; private set; }
     public SaleOrigin Origin { get; private set; }
@@ -59,6 +60,7 @@ public class Sale : AuditableEntity
             TicketNumber = ticketNumber.Trim(),
             Subtotal = 0,
             DiscountAmount = 0,
+            SurchargeAmount = 0,
             Total = 0
         };
     }
@@ -118,6 +120,16 @@ public class Sale : AuditableEntity
             throw new DomainException("Desconto não pode ser maior que o subtotal.");
 
         DiscountAmount = decimal.Round(discountAmount, 2);
+        RecalculateTotals();
+    }
+
+    public void ApplySurcharge(decimal surchargeAmount)
+    {
+        EnsureOpen();
+        if (surchargeAmount < 0)
+            throw new DomainException("Acréscimo não pode ser negativo.");
+
+        SurchargeAmount = decimal.Round(surchargeAmount, 2);
         RecalculateTotals();
     }
 
@@ -202,7 +214,7 @@ public class Sale : AuditableEntity
     private void RecalculateTotals()
     {
         Subtotal = decimal.Round(_items.Sum(i => i.Subtotal), 2);
-        Total = decimal.Round(Subtotal - DiscountAmount, 2);
+        Total = decimal.Round(Subtotal - DiscountAmount + SurchargeAmount, 2);
         MarkUpdated();
     }
 

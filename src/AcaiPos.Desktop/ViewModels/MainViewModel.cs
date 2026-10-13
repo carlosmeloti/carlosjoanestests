@@ -9,6 +9,9 @@ using AcaiPos.Domain.Enums;
 
 namespace AcaiPos.Desktop.ViewModels;
 
+/// <summary>
+/// Parcela já lançada no pagamento da venda.
+/// </summary>
 public sealed class PaymentLineViewModel : ObservableObject
 {
     public PaymentMethod Method { get; init; }
@@ -18,6 +21,9 @@ public sealed class PaymentLineViewModel : ObservableObject
     public string AmountLabel => Amount.ToString("C");
 }
 
+/// <summary>
+/// Item do carrinho, com edição direta da quantidade.
+/// </summary>
 public sealed class CartLineViewModel : ObservableObject
 {
     private decimal _quantity;
@@ -58,6 +64,9 @@ public sealed class CartLineViewModel : ObservableObject
     public string UnitPriceLabel => UnitPrice.ToString("C");
     public string SubtotalLabel => Subtotal.ToString("C");
 
+    /// <summary>
+    /// Entra no modo de edição e copia a quantidade atual para o campo de texto.
+    /// </summary>
     public void BeginQuantityEdit()
     {
         QuantityText = QuantityLabel;
@@ -65,6 +74,9 @@ public sealed class CartLineViewModel : ObservableObject
     }
 }
 
+/// <summary>
+/// Tela principal: login, venda, caixa, navegação e os painéis de pagamento e ticket.
+/// </summary>
 public sealed class MainViewModel : ObservableObject
 {
     private readonly AuthService _authService;
@@ -89,9 +101,12 @@ public sealed class MainViewModel : ObservableObject
     private decimal _openingAmount = 100m;
     private decimal _countedAmount;
     private string _paymentPanelVisibility = "Collapsed";
-    private decimal _cashReceived;
-    private decimal _partialPaymentAmount;
+    private string _paymentMethodPanelVisibility = "Collapsed";
+    private bool _isEnteringPaymentAmount;
+    private decimal _paymentEntryAmount;
+    private string _paymentEntryMessage = string.Empty;
     private decimal _discountAmount;
+    private decimal _surchargeAmount;
     private string _discountAuthorizerUsername = "gerente";
     private string _discountAuthorizerPin = string.Empty;
     private bool _discountAuthorized;
@@ -117,6 +132,9 @@ public sealed class MainViewModel : ObservableObject
     private bool _canManageUsers;
     private bool _isNavCollapsed;
 
+    /// <summary>
+    /// Monta as telas filhas, os comandos e o relógio da barra de status.
+    /// </summary>
     public MainViewModel(
         AuthService authService,
         CatalogService catalogService,
@@ -185,13 +203,14 @@ public sealed class MainViewModel : ObservableObject
         SearchOrBarcodeCommand = new RelayCommand(async _ => await SearchOrBarcodeAsync());
         StartPaymentCommand = new RelayCommand(_ => StartPayment(), _ => IsCashOpen && Cart.Count > 0);
         CancelPaymentCommand = new RelayCommand(_ => CancelPaymentPanel());
-        ResetPaymentCommand = new RelayCommand(_ => ResetPaymentEdits());
         AuthorizeDiscountCommand = new RelayCommand(_ => AuthorizeDiscount());
-        PayFullCommand = new RelayCommand(async p => await AddPaymentAsync(p, payRemaining: true), _ => CanAcceptPayment());
-        AddPartialPaymentCommand = new RelayCommand(async p => await AddPaymentAsync(p, payRemaining: false), _ => CanAcceptPayment());
-        ConfirmCashPaymentCommand = new RelayCommand(async _ => await AddPaymentAsync("Cash", payRemaining: false), _ => CanAcceptPayment());
+        OpenPaymentMethodCommand = new RelayCommand(_ => OpenPaymentMethodPanel(), _ => CanOpenPaymentMethod());
+        SelectPaymentMethodCommand = new RelayCommand(p => SelectPaymentMethod(p));
+        AcceptPaymentAmountCommand = new RelayCommand(_ => AcceptPaymentAmount());
+        ClosePaymentMethodCommand = new RelayCommand(_ => ClosePaymentMethodPanel());
+        BackToPaymentMethodsCommand = new RelayCommand(_ => BackToPaymentMethods());
         RemovePaymentLineCommand = new RelayCommand(p => RemovePaymentLine(p as PaymentLineViewModel));
-        CompleteMixedPaymentCommand = new RelayCommand(async _ => await CompleteSaleAsync(PaymentLines.Select(ToDraft).ToList()), _ => PaymentRemaining <= 0.009m && PaymentLines.Count > 0 && IsDiscountClearedForPayment);
+        SavePaymentCommand = new RelayCommand(async _ => await CompleteSaleAsync(PaymentLines.Select(ToDraft).ToList()), _ => CanSavePayment());
         AppendPinCommand = new RelayCommand(p => AppendPin(p?.ToString()));
         ClearPinCommand = new RelayCommand(_ => Pin = string.Empty);
         BackspacePinCommand = new RelayCommand(_ =>
@@ -216,6 +235,12 @@ public sealed class MainViewModel : ObservableObject
         CloseReprintCommand = new RelayCommand(_ => ShowReprintPanel = false);
         ViewTicketCommand = new RelayCommand(async p => await ViewTicketAsync(p as TicketDto), _ => IsAuthenticated);
         ReprintSelectedCommand = new RelayCommand(async p => await ReprintTicketAsync(p as TicketDto), _ => IsAuthenticated);
+
+        PaymentLines.CollectionChanged += (_, _) =>
+        {
+            RaisePropertyChanged(nameof(PaymentLinesEmptyVisibility));
+            RaisePaymentFacts();
+        };
 
         var timer = new System.Windows.Threading.DispatcherTimer
         {
@@ -257,13 +282,14 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand SearchOrBarcodeCommand { get; }
     public RelayCommand StartPaymentCommand { get; }
     public RelayCommand CancelPaymentCommand { get; }
-    public RelayCommand ResetPaymentCommand { get; }
     public RelayCommand AuthorizeDiscountCommand { get; }
-    public RelayCommand PayFullCommand { get; }
-    public RelayCommand AddPartialPaymentCommand { get; }
-    public RelayCommand ConfirmCashPaymentCommand { get; }
+    public RelayCommand OpenPaymentMethodCommand { get; }
+    public RelayCommand SelectPaymentMethodCommand { get; }
+    public RelayCommand AcceptPaymentAmountCommand { get; }
+    public RelayCommand ClosePaymentMethodCommand { get; }
+    public RelayCommand BackToPaymentMethodsCommand { get; }
     public RelayCommand RemovePaymentLineCommand { get; }
-    public RelayCommand CompleteMixedPaymentCommand { get; }
+    public RelayCommand SavePaymentCommand { get; }
     public RelayCommand AppendPinCommand { get; }
     public RelayCommand ClearPinCommand { get; }
     public RelayCommand BackspacePinCommand { get; }
@@ -542,49 +568,60 @@ public sealed class MainViewModel : ObservableObject
         set => SetProperty(ref _paymentPanelVisibility, value);
     }
 
-    public decimal CashReceived
+    public string PaymentMethodPanelVisibility
     {
-        get => _cashReceived;
+        get => _paymentMethodPanelVisibility;
         set
         {
-            var rounded = decimal.Round(value, 2);
-            if (_cashReceived == rounded)
-                return;
-
-            _cashReceived = rounded;
-            RaisePropertyChanged();
-            RaisePropertyChanged(nameof(CashChangeLabel));
-            DeferMoneyTextRefresh(nameof(CashReceivedText));
+            SetProperty(ref _paymentMethodPanelVisibility, value);
+            RaisePropertyChanged(nameof(PaymentMethodListVisibility));
+            RaisePropertyChanged(nameof(PaymentAmountEntryVisibility));
         }
     }
 
-    public string CashReceivedText
-    {
-        get => _cashReceived.ToString("N2");
-        set => ApplyMoneyText(value, amount => CashReceived = amount, nameof(CashReceivedText));
-    }
+    public string PaymentMethodListVisibility =>
+        _paymentMethodPanelVisibility == "Visible" && !_isEnteringPaymentAmount ? "Visible" : "Collapsed";
 
-    public decimal PartialPaymentAmount
+    public string PaymentAmountEntryVisibility =>
+        _paymentMethodPanelVisibility == "Visible" && _isEnteringPaymentAmount ? "Visible" : "Collapsed";
+
+    public string PaymentLinesEmptyVisibility => PaymentLines.Count == 0 ? "Visible" : "Collapsed";
+
+    public string SelectedPaymentMethodLabel => MethodLabel(SelectedPaymentMethod);
+
+    public decimal PaymentEntryAmount
     {
-        get => _partialPaymentAmount;
+        get => _paymentEntryAmount;
         set
         {
-            var rounded = decimal.Round(value, 2);
-            if (_partialPaymentAmount == rounded)
+            var rounded = decimal.Round(Math.Max(0, value), 2);
+            if (_paymentEntryAmount == rounded)
                 return;
 
-            _partialPaymentAmount = rounded;
+            _paymentEntryAmount = rounded;
             RaisePropertyChanged();
-            RaisePropertyChanged(nameof(CashChangeLabel));
-            DeferMoneyTextRefresh(nameof(PartialPaymentAmountText));
+            DeferMoneyTextRefresh(nameof(PaymentEntryAmountText));
         }
     }
 
-    public string PartialPaymentAmountText
+    public string PaymentEntryAmountText
     {
-        get => _partialPaymentAmount.ToString("N2");
-        set => ApplyMoneyText(value, amount => PartialPaymentAmount = amount, nameof(PartialPaymentAmountText));
+        get => _paymentEntryAmount.ToString("N2");
+        set => ApplyMoneyText(value, amount => PaymentEntryAmount = amount, nameof(PaymentEntryAmountText));
     }
+
+    public string PaymentEntryMessage
+    {
+        get => _paymentEntryMessage;
+        private set
+        {
+            SetProperty(ref _paymentEntryMessage, value);
+            RaisePropertyChanged(nameof(PaymentEntryMessageVisibility));
+        }
+    }
+
+    public string PaymentEntryMessageVisibility =>
+        string.IsNullOrEmpty(_paymentEntryMessage) ? "Collapsed" : "Visible";
 
     public decimal DiscountAmount
     {
@@ -598,8 +635,7 @@ public sealed class MainViewModel : ObservableObject
             if (changed)
             {
                 InvalidateDiscountAuthorization();
-                PartialPaymentAmount = PaymentRemaining;
-                CashReceived = PaymentRemaining;
+                NotifyAllocationDrift();
             }
             RaisePaymentFacts();
             RaisePropertyChanged(nameof(DiscountAuthVisibility));
@@ -613,6 +649,30 @@ public sealed class MainViewModel : ObservableObject
         set => ApplyMoneyText(value, amount => DiscountAmount = amount, nameof(DiscountAmountText));
     }
 
+    public decimal SurchargeAmount
+    {
+        get => _surchargeAmount;
+        set
+        {
+            var rounded = decimal.Round(Math.Max(0, value), 2);
+            var changed = _surchargeAmount != rounded;
+            SetProperty(ref _surchargeAmount, rounded);
+            if (changed)
+                NotifyAllocationDrift();
+            RaisePaymentFacts();
+            DeferMoneyTextRefresh(nameof(SurchargeAmountText));
+        }
+    }
+
+    public string SurchargeAmountText
+    {
+        get => _surchargeAmount.ToString("N2");
+        set => ApplyMoneyText(value, amount => SurchargeAmount = amount, nameof(SurchargeAmountText));
+    }
+
+    /// <summary>
+    /// Interpreta um valor monetário no formato local ou invariante.
+    /// </summary>
     private static bool TryParseMoney(string? text, out decimal value)
     {
         value = 0;
@@ -624,6 +684,9 @@ public sealed class MainViewModel : ObservableObject
             || decimal.TryParse(trimmed, NumberStyles.Number, CultureInfo.InvariantCulture, out value);
     }
 
+    /// <summary>
+    /// Aplica o texto digitado ao valor e reagenda a formatação do campo.
+    /// </summary>
     private void ApplyMoneyText(string? text, Action<decimal> assign, string textPropertyName)
     {
         if (TryParseMoney(text, out var parsed))
@@ -632,6 +695,9 @@ public sealed class MainViewModel : ObservableObject
         DeferMoneyTextRefresh(textPropertyName);
     }
 
+    /// <summary>
+    /// Reaplica a máscara do campo depois do ciclo de binding, para não brigar com a digitação.
+    /// </summary>
     private void DeferMoneyTextRefresh(string propertyName)
     {
         var dispatcher = System.Windows.Application.Current?.Dispatcher;
@@ -693,28 +759,32 @@ public sealed class MainViewModel : ObservableObject
     public PaymentMethod SelectedPaymentMethod
     {
         get => _selectedPaymentMethod;
-        set => SetProperty(ref _selectedPaymentMethod, value);
+        set
+        {
+            SetProperty(ref _selectedPaymentMethod, value);
+            RaisePropertyChanged(nameof(SelectedPaymentMethodLabel));
+        }
     }
 
-    public decimal PayableTotal => Math.Max(0, CartTotal - DiscountAmount);
+    public decimal PayableTotal => Math.Max(0, decimal.Round(CartTotal - DiscountAmount + SurchargeAmount, 2));
     public decimal PaymentPaid => PaymentLines.Sum(p => p.Amount);
     public decimal PaymentRemaining => Math.Max(0, PayableTotal - PaymentPaid);
     public string PayableTotalLabel => PayableTotal.ToString("C");
     public string PaymentPaidLabel => PaymentPaid.ToString("C");
     public string PaymentRemainingLabel => PaymentRemaining.ToString("C");
-    public string CartTotalLabel => CartTotal.ToString("C");
-    public string CartCountLabel => $"{Cart.Sum(i => i.Quantity):0.###} itens";
-    public decimal CartTotal => Cart.Sum(i => i.Subtotal);
-    public string CashChangeLabel
+    public string PaymentBalanceLabel
     {
         get
         {
-            if (PartialPaymentAmount <= 0)
-                return "Informe o valor da parcela";
-            var change = CashReceived - PartialPaymentAmount;
-            return change >= 0 ? $"Troco desta parcela: {change:C}" : "Valor recebido insuficiente";
+            var balance = decimal.Round(PayableTotal - PaymentPaid, 2);
+            return balance < -0.009m
+                ? $"Excedente: {Math.Abs(balance):C}"
+                : $"Restante: {balance:C}";
         }
     }
+    public string CartTotalLabel => CartTotal.ToString("C");
+    public string CartCountLabel => $"{Cart.Sum(i => i.Quantity):0.###} itens";
+    public decimal CartTotal => Cart.Sum(i => i.Subtotal);
 
     public string LastTicketInfo
     {
@@ -734,6 +804,9 @@ public sealed class MainViewModel : ObservableObject
         set => SetProperty(ref _showCashClosePanel, value);
     }
 
+    /// <summary>
+    /// Autentica o operador, libera as telas conforme o papel e abre o catálogo de venda.
+    /// </summary>
     private async Task LoginAsync()
     {
         try
@@ -763,6 +836,9 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Encerra a sessão e limpa carrinho, painéis e permissões.
+    /// </summary>
     private async Task LogoutAsync()
     {
         await _authService.LogoutAsync();
@@ -774,11 +850,13 @@ public sealed class MainViewModel : ObservableObject
         Cart.Clear();
         PaymentLines.Clear();
         DiscountAmount = 0;
+        SurchargeAmount = 0;
         Categories.Clear();
         Products.Clear();
         OperatorName = string.Empty;
         TerminalLabel = string.Empty;
         StatusMessage = "Sessão encerrada.";
+        ClosePaymentMethodPanel();
         PaymentPanelVisibility = "Collapsed";
         ShowCashOpenPanel = false;
         ShowCashClosePanel = false;
@@ -791,6 +869,9 @@ public sealed class MainViewModel : ObservableObject
         RefreshCartTotals();
     }
 
+    /// <summary>
+    /// Volta para a tela de venda e recarrega o catálogo.
+    /// </summary>
     private async Task NavigateToSaleAsync()
     {
         CurrentScreen = "Sale";
@@ -798,6 +879,9 @@ public sealed class MainViewModel : ObservableObject
         StatusMessage = "Tela de venda.";
     }
 
+    /// <summary>
+    /// Abre o cadastro de produtos e categorias, se o papel permitir.
+    /// </summary>
     private async Task NavigateToCatalogAsync()
     {
         if (!CanManageCatalog)
@@ -815,6 +899,9 @@ public sealed class MainViewModel : ObservableObject
         StatusMessage = "Cadastro de produtos e categorias.";
     }
 
+    /// <summary>
+    /// Abre o cadastro de usuários, se o papel for administrador.
+    /// </summary>
     private async Task NavigateToUsersAsync()
     {
         if (!CanManageUsers)
@@ -834,6 +921,9 @@ public sealed class MainViewModel : ObservableObject
         StatusMessage = "Cadastro de usuários.";
     }
 
+    /// <summary>
+    /// Abre o histórico e carrega as vendas de hoje.
+    /// </summary>
     private async Task NavigateToHistoryAsync()
     {
         CurrentScreen = "History";
@@ -847,6 +937,9 @@ public sealed class MainViewModel : ObservableObject
         StatusMessage = "Histórico de vendas.";
     }
 
+    /// <summary>
+    /// Abre os ciclos de caixa no mês corrente.
+    /// </summary>
     private async Task NavigateToCashSessionAsync()
     {
         CurrentScreen = "CashSession";
@@ -860,12 +953,18 @@ public sealed class MainViewModel : ObservableObject
         StatusMessage = CashSession.Message;
     }
 
+    /// <summary>
+    /// Atualiza os ciclos se essa tela estiver visível.
+    /// </summary>
     private async Task RefreshCashSessionIfVisibleAsync()
     {
         if (CurrentScreen == "CashSession")
             await CashSession.LoadAsync();
     }
 
+    /// <summary>
+    /// Abre o painel de sangria ou suprimento do caixa aberto.
+    /// </summary>
     private async Task OpenMovementPanelAsync(CashMovementType type)
     {
         ShowCashMenu = false;
@@ -888,6 +987,9 @@ public sealed class MainViewModel : ObservableObject
         await RefreshCashMovementContextAsync();
     }
 
+    /// <summary>
+    /// Registra a movimentação e atualiza o resumo do caixa aberto.
+    /// </summary>
     private async Task ConfirmCashMovementAsync()
     {
         try
@@ -913,6 +1015,9 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Recarrega as movimentações e o texto de saldo esperado do caixa aberto.
+    /// </summary>
     private async Task RefreshCashMovementContextAsync()
     {
         CashMovements.Clear();
@@ -931,6 +1036,9 @@ public sealed class MainViewModel : ObservableObject
             $"Sangrias {summary.Withdrawals:C} · Esperado em dinheiro {summary.ExpectedCash:C}";
     }
 
+    /// <summary>
+    /// Abre o caixa com o fundo informado.
+    /// </summary>
     private async Task OpenCashAsync()
     {
         try
@@ -947,6 +1055,9 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Abre o painel de fechamento com o valor esperado já preenchido.
+    /// </summary>
     private async void BeginCloseCash()
     {
         ShowCashMenu = false;
@@ -971,6 +1082,9 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Fecha o caixa com o valor contado, limpa o carrinho e informa a diferença.
+    /// </summary>
     private async Task ConfirmCloseCashAsync()
     {
         try
@@ -990,6 +1104,9 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Carrega categorias ativas, seleciona "Todos" e lista os produtos vendáveis.
+    /// </summary>
     private async Task LoadCatalogAsync()
     {
         Categories.Clear();
@@ -1001,12 +1118,18 @@ public sealed class MainViewModel : ObservableObject
         await LoadProductsAsync();
     }
 
+    /// <summary>
+    /// Filtra os produtos pela categoria. Guid vazio volta para todos.
+    /// </summary>
     private async Task SelectCategoryAsync(Guid? categoryId)
     {
         _selectedCategoryId = categoryId is null || categoryId == Guid.Empty ? null : categoryId;
         await LoadProductsAsync();
     }
 
+    /// <summary>
+    /// Lista os produtos vendáveis da categoria e do texto de busca atuais.
+    /// </summary>
     private async Task LoadProductsAsync()
     {
         Products.Clear();
@@ -1015,6 +1138,9 @@ public sealed class MainViewModel : ObservableObject
             Products.Add(item);
     }
 
+    /// <summary>
+    /// Soma uma unidade ao item já no carrinho ou inclui uma linha nova. Exige caixa aberto.
+    /// </summary>
     private void AddProduct(ProductDto? product)
     {
         if (product is null)
@@ -1048,6 +1174,9 @@ public sealed class MainViewModel : ObservableObject
         StatusMessage = $"{product.Name} adicionado.";
     }
 
+    /// <summary>
+    /// Altera a quantidade do item. Zero ou menos remove a linha. Confirma edição em andamento.
+    /// </summary>
     private void ChangeQty(CartLineViewModel? item, decimal delta)
     {
         if (item is null)
@@ -1068,6 +1197,9 @@ public sealed class MainViewModel : ObservableObject
         RefreshCartTotals();
     }
 
+    /// <summary>
+    /// Começa a edição da quantidade e confirma qualquer outra linha que ainda esteja em edição.
+    /// </summary>
     private void BeginEditQuantity(CartLineViewModel? item)
     {
         if (item is null || !IsCashOpen)
@@ -1082,6 +1214,9 @@ public sealed class MainViewModel : ObservableObject
         item.BeginQuantityEdit();
     }
 
+    /// <summary>
+    /// Grava a quantidade digitada. Valor inválido é ignorado; zero ou menos remove o item.
+    /// </summary>
     private void CommitQuantity(CartLineViewModel? item)
     {
         if (item is null || !item.IsEditingQuantity)
@@ -1118,6 +1253,9 @@ public sealed class MainViewModel : ObservableObject
         RefreshCartTotals();
     }
 
+    /// <summary>
+    /// Sai da edição e restaura o texto da quantidade original.
+    /// </summary>
     private void CancelQuantityEdit(CartLineViewModel? item)
     {
         if (item is null)
@@ -1127,6 +1265,9 @@ public sealed class MainViewModel : ObservableObject
         item.QuantityText = item.QuantityLabel;
     }
 
+    /// <summary>
+    /// Remove o item do carrinho e atualiza os totais.
+    /// </summary>
     private void RemoveItem(CartLineViewModel? item)
     {
         if (item is null)
@@ -1136,57 +1277,47 @@ public sealed class MainViewModel : ObservableObject
         RefreshCartTotals();
     }
 
+    /// <summary>
+    /// Esvazia o carrinho, o desconto e as parcelas e fecha o painel de pagamento.
+    /// </summary>
     private void ClearCart()
     {
         Cart.Clear();
         DiscountAmount = 0;
+        SurchargeAmount = 0;
         PaymentLines.Clear();
         RefreshCartTotals();
+        ClosePaymentMethodPanel();
         PaymentPanelVisibility = "Collapsed";
     }
 
+    /// <summary>
+    /// Descarta as formas lançadas e fecha a efetivação.
+    /// </summary>
     private void CancelPaymentPanel()
     {
         PaymentLines.Clear();
+        ClosePaymentMethodPanel();
         PaymentPanelVisibility = "Collapsed";
         RaisePaymentFacts();
     }
 
-    private void ResetPaymentEdits()
-    {
-        PaymentLines.Clear();
-        DiscountAmount = 0;
-        PartialPaymentAmount = CartTotal;
-        CashReceived = CartTotal;
-        SelectedPaymentMethod = PaymentMethod.Pix;
-        DiscountAuthorizerUsername = string.Empty;
-        DiscountAuthorizerPin = string.Empty;
-        DiscountAuthorized = false;
-        DiscountAuthMessage = "Informe usuário e PIN do gerente ou administrador.";
-        RaisePaymentFacts();
-        StatusMessage = "Edições do pagamento limpas. Total do carrinho restaurado.";
-    }
-
+    /// <summary>
+    /// Abre a efetivação com desconto, acréscimo e a lista de formas ainda vazia.
+    /// </summary>
     private void StartPayment()
     {
-        try
-        {
-            PaymentLines.Clear();
-            DiscountAmount = Math.Min(DiscountAmount, CartTotal);
-            PartialPaymentAmount = PayableTotal;
-            CashReceived = PayableTotal;
-            PaymentPanelVisibility = "Visible";
-            RaisePaymentFacts();    
-        }
-        catch (System.Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine(ex.Message);
-            throw;
-        }
-        
+        PaymentLines.Clear();
+        DiscountAmount = Math.Min(DiscountAmount, CartTotal);
+        ClosePaymentMethodPanel();
+        PaymentPanelVisibility = "Visible";
+        RaisePaymentFacts();
     }
 
-    private async Task AddPaymentAsync(object? parameter, bool payRemaining)
+    /// <summary>
+    /// Abre a escolha da forma de pagamento enquanto ainda houver saldo.
+    /// </summary>
+    private void OpenPaymentMethodPanel()
     {
         if (!IsDiscountClearedForPayment)
         {
@@ -1195,61 +1326,113 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
-        if (parameter is string methodText && Enum.TryParse<PaymentMethod>(methodText, out var method))
-            SelectedPaymentMethod = method;
+        if (PaymentRemaining <= 0.009m)
+        {
+            StatusMessage = "Não há saldo restante. Clique em Gravar para concluir.";
+            return;
+        }
 
-        var amount = payRemaining ? PaymentRemaining : PartialPaymentAmount;
+        _isEnteringPaymentAmount = false;
+        PaymentMethodPanelVisibility = "Visible";
+    }
+
+    /// <summary>
+    /// Preenche o valor da forma escolhida com o saldo restante.
+    /// </summary>
+    private void SelectPaymentMethod(object? parameter)
+    {
+        if (parameter is not string methodText || !Enum.TryParse<PaymentMethod>(methodText, out var method))
+            return;
+
+        SelectedPaymentMethod = method;
+        PaymentEntryAmount = PaymentRemaining;
+        PaymentEntryMessage = string.Empty;
+        _isEnteringPaymentAmount = true;
+        RaisePropertyChanged(nameof(PaymentMethodListVisibility));
+        RaisePropertyChanged(nameof(PaymentAmountEntryVisibility));
+    }
+
+    /// <summary>
+    /// Confirma o valor da forma e volta para a lista da efetivação.
+    /// </summary>
+    private void AcceptPaymentAmount()
+    {
+        if (!IsDiscountClearedForPayment)
+        {
+            StatusMessage = "Autorize o desconto antes de lançar o pagamento.";
+            DiscountAuthMessage = StatusMessage;
+            return;
+        }
+
+        var amount = decimal.Round(PaymentEntryAmount, 2);
         if (amount <= 0)
         {
-            StatusMessage = "Informe um valor de pagamento válido.";
+            PaymentEntryMessage = "Informe um valor maior que zero.";
             return;
         }
 
         if (amount - PaymentRemaining > 0.009m)
         {
-            StatusMessage = "Valor maior que o restante da venda.";
+            PaymentEntryMessage = "O valor não pode ser maior que o saldo restante.";
             return;
-        }
-
-        decimal? received = null;
-        if (SelectedPaymentMethod == PaymentMethod.Cash)
-        {
-            received = payRemaining ? Math.Max(CashReceived, amount) : CashReceived;
-            if ((received ?? 0) < amount)
-            {
-                StatusMessage = "Valor recebido insuficiente para a parcela em dinheiro.";
-                return;
-            }
         }
 
         PaymentLines.Add(new PaymentLineViewModel
         {
             Method = SelectedPaymentMethod,
             MethodLabel = MethodLabel(SelectedPaymentMethod),
-            Amount = decimal.Round(amount, 2),
-            AmountReceived = received.HasValue ? decimal.Round(received.Value, 2) : null
+            Amount = amount
         });
 
-        RaisePaymentFacts();
-        PartialPaymentAmount = PaymentRemaining;
-        CashReceived = PaymentRemaining;
-
-        if (PaymentRemaining <= 0.009m)
-            await CompleteSaleAsync(PaymentLines.Select(ToDraft).ToList());
+        ClosePaymentMethodPanel();
+        StatusMessage = PaymentRemaining <= 0.009m
+            ? "Valor distribuído. Clique em Gravar para concluir."
+            : $"Restam {PaymentRemaining:C} para distribuir.";
     }
 
+    /// <summary>
+    /// Fecha a escolha da forma sem lançar valor.
+    /// </summary>
+    private void ClosePaymentMethodPanel()
+    {
+        _isEnteringPaymentAmount = false;
+        PaymentEntryMessage = string.Empty;
+        PaymentMethodPanelVisibility = "Collapsed";
+    }
+
+    /// <summary>
+    /// Volta da digitação do valor para a lista de formas disponíveis.
+    /// </summary>
+    private void BackToPaymentMethods()
+    {
+        _isEnteringPaymentAmount = false;
+        RaisePropertyChanged(nameof(PaymentMethodListVisibility));
+        RaisePropertyChanged(nameof(PaymentAmountEntryVisibility));
+    }
+
+    /// <summary>
+    /// Remove uma forma lançada e devolve o valor ao saldo restante.
+    /// </summary>
     private void RemovePaymentLine(PaymentLineViewModel? line)
     {
         if (line is null)
             return;
+
         PaymentLines.Remove(line);
-        RaisePaymentFacts();
-        PartialPaymentAmount = PaymentRemaining;
+        StatusMessage = PaymentRemaining <= 0.009m
+            ? "Valor distribuído. Clique em Gravar para concluir."
+            : $"Restam {PaymentRemaining:C} para distribuir.";
     }
 
+    /// <summary>
+    /// Converte a parcela da tela para o rascunho aceito pelo serviço de venda.
+    /// </summary>
     private static PaymentDraftDto ToDraft(PaymentLineViewModel line)
         => new(line.Method, line.Amount, line.AmountReceived);
 
+    /// <summary>
+    /// Rótulo em português da forma de pagamento.
+    /// </summary>
     private static string MethodLabel(PaymentMethod method) => method switch
     {
         PaymentMethod.Cash => "Dinheiro",
@@ -1259,6 +1442,9 @@ public sealed class MainViewModel : ObservableObject
         _ => method.ToString()
     };
 
+    /// <summary>
+    /// Valida o desconto ao sair do campo, se usuário e PIN já estiverem preenchidos.
+    /// </summary>
     public void TryAuthorizeDiscountFromFocus()
     {
         if (string.IsNullOrWhiteSpace(DiscountAuthorizerUsername) || string.IsNullOrWhiteSpace(DiscountAuthorizerPin))
@@ -1267,6 +1453,9 @@ public sealed class MainViewModel : ObservableObject
         AuthorizeDiscount();
     }
 
+    /// <summary>
+    /// Confere usuário e PIN de gerente ou administrador antes de aceitar o desconto.
+    /// </summary>
     private void AuthorizeDiscount()
     {
         if (DiscountAmount <= 0 || _saleService.CurrentUserCanApplyDiscount)
@@ -1295,6 +1484,9 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Invalida a autorização quando o valor, o usuário ou o PIN mudam.
+    /// </summary>
     private void InvalidateDiscountAuthorization()
     {
         DiscountAuthorized = false;
@@ -1302,19 +1494,46 @@ public sealed class MainViewModel : ObservableObject
             DiscountAuthMessage = "Informe usuário e PIN. A validação ocorre ao sair do campo ou em Autorizar.";
     }
 
+    /// <summary>
+    /// Indica se o pagamento pode seguir: sem desconto, operador autorizado ou desconto já validado.
+    /// </summary>
     private bool IsDiscountClearedForPayment =>
         DiscountAmount <= 0 || _saleService.CurrentUserCanApplyDiscount || DiscountAuthorized;
 
-    private bool CanAcceptPayment() => Cart.Count > 0 && IsDiscountClearedForPayment;
+    /// <summary>
+    /// Indica se ainda há saldo e o desconto já está liberado para escolher uma forma.
+    /// </summary>
+    private bool CanOpenPaymentMethod() => PaymentRemaining > 0.009m && IsDiscountClearedForPayment;
 
-    private void RaisePaymentCommandStates()
+    /// <summary>
+    /// Indica se as formas lançadas fecham o total e o desconto já está liberado.
+    /// </summary>
+    private bool CanSavePayment() =>
+        PaymentLines.Count > 0
+        && Math.Abs(PayableTotal - PaymentPaid) <= 0.009m
+        && IsDiscountClearedForPayment;
+
+    /// <summary>
+    /// Avisa quando as formas já lançadas passam do total depois de um ajuste.
+    /// </summary>
+    private void NotifyAllocationDrift()
     {
-        PayFullCommand.RaiseCanExecuteChanged();
-        AddPartialPaymentCommand.RaiseCanExecuteChanged();
-        ConfirmCashPaymentCommand.RaiseCanExecuteChanged();
-        CompleteMixedPaymentCommand.RaiseCanExecuteChanged();
+        if (PaymentLines.Count > 0 && PaymentPaid - PayableTotal > 0.009m)
+            StatusMessage = "As formas lançadas passam do total. Remova alguma para continuar.";
     }
 
+    /// <summary>
+    /// Reavalia os comandos de pagamento depois de mudança de desconto, acréscimo ou autorização.
+    /// </summary>
+    private void RaisePaymentCommandStates()
+    {
+        OpenPaymentMethodCommand.RaiseCanExecuteChanged();
+        SavePaymentCommand.RaiseCanExecuteChanged();
+    }
+
+    /// <summary>
+    /// Conclui a venda, limpa o carrinho, atualiza o estoque visível e abre o ticket.
+    /// </summary>
     private async Task CompleteSaleAsync(IReadOnlyList<PaymentDraftDto> payments)
     {
         if (!IsDiscountClearedForPayment)
@@ -1339,7 +1558,8 @@ public sealed class MainViewModel : ObservableObject
                 payments,
                 DiscountAmount,
                 DiscountAmount > 0 && !_saleService.CurrentUserCanApplyDiscount ? DiscountAuthorizerUsername : null,
-                DiscountAmount > 0 && !_saleService.CurrentUserCanApplyDiscount ? DiscountAuthorizerPin : null);
+                DiscountAmount > 0 && !_saleService.CurrentUserCanApplyDiscount ? DiscountAuthorizerPin : null,
+                SurchargeAmount);
 
             LastTicketInfo =
                 $"Ticket {sale.TicketNumber} · {sale.Total:C}" +
@@ -1348,8 +1568,10 @@ public sealed class MainViewModel : ObservableObject
             Cart.Clear();
             PaymentLines.Clear();
             DiscountAmount = 0;
+            SurchargeAmount = 0;
             DiscountAuthorizerPin = string.Empty;
             RefreshCartTotals();
+            ClosePaymentMethodPanel();
             PaymentPanelVisibility = "Collapsed";
             StatusMessage = $"Venda concluída: {LastTicketInfo}";
             await LoadProductsAsync();
@@ -1367,6 +1589,9 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Se o texto for um código de barras, inclui o produto; caso contrário, filtra a lista.
+    /// </summary>
     private async Task SearchOrBarcodeAsync()
     {
         if (string.IsNullOrWhiteSpace(SearchText))
@@ -1387,6 +1612,9 @@ public sealed class MainViewModel : ObservableObject
         await LoadProductsAsync();
     }
 
+    /// <summary>
+    /// Acrescenta um dígito ao PIN, até o limite de oito caracteres.
+    /// </summary>
     private void AppendPin(string? digit)
     {
         if (string.IsNullOrWhiteSpace(digit) || Pin.Length >= 8)
@@ -1395,6 +1623,9 @@ public sealed class MainViewModel : ObservableObject
         Pin += digit;
     }
 
+    /// <summary>
+    /// Notifica totais, restante, troco e o estado dos comandos de pagamento.
+    /// </summary>
     private void RaisePaymentFacts()
     {
         RaisePropertyChanged(nameof(PayableTotal));
@@ -1403,11 +1634,14 @@ public sealed class MainViewModel : ObservableObject
         RaisePropertyChanged(nameof(PaymentPaidLabel));
         RaisePropertyChanged(nameof(PaymentRemaining));
         RaisePropertyChanged(nameof(PaymentRemainingLabel));
-        RaisePropertyChanged(nameof(CashChangeLabel));
+        RaisePropertyChanged(nameof(PaymentBalanceLabel));
         RaisePropertyChanged(nameof(DiscountAuthVisibility));
         RaisePaymentCommandStates();
     }
 
+    /// <summary>
+    /// Recalcula o total do carrinho e os valores derivados do pagamento.
+    /// </summary>
     private void RefreshCartTotals()
     {
         RaisePropertyChanged(nameof(CartTotal));
@@ -1418,6 +1652,9 @@ public sealed class MainViewModel : ObservableObject
         ClearCartCommand.RaiseCanExecuteChanged();
     }
 
+    /// <summary>
+    /// Carrega o texto do ticket e abre o painel de visualização.
+    /// </summary>
     private async Task ShowTicketAsync(Guid saleId, bool isReprint)
     {
         var ticket = await _ticketService.GetTicketAsync(saleId, isReprint);
@@ -1430,6 +1667,9 @@ public sealed class MainViewModel : ObservableObject
         LastTicketInfo = $"Ticket {ticket.TicketNumber} · {ticket.Total:C}";
     }
 
+    /// <summary>
+    /// Fecha o painel do ticket e libera a impressão.
+    /// </summary>
     private void CloseTicketPanel()
     {
         ShowTicketPanel = false;
@@ -1438,6 +1678,9 @@ public sealed class MainViewModel : ObservableObject
         PrintTicketCommand.RaiseCanExecuteChanged();
     }
 
+    /// <summary>
+    /// Envia o ticket aberto para a impressora, como original ou reimpressão.
+    /// </summary>
     private async Task PrintCurrentTicketAsync()
     {
         if (!_currentTicketSaleId.HasValue)
@@ -1461,6 +1704,9 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Lista os tickets de hoje e abre o painel de reimpressão.
+    /// </summary>
     private async Task OpenReprintPanelAsync()
     {
         ShowCashMenu = false;
@@ -1479,6 +1725,9 @@ public sealed class MainViewModel : ObservableObject
             : $"{TodayTickets.Count} ticket(s) de hoje.";
     }
 
+    /// <summary>
+    /// Abre o ticket selecionado no modo de reimpressão.
+    /// </summary>
     private async Task ViewTicketAsync(TicketDto? ticket)
     {
         if (ticket is null)
@@ -1487,6 +1736,9 @@ public sealed class MainViewModel : ObservableObject
         await ShowTicketAsync(ticket.SaleId, isReprint: true);
     }
 
+    /// <summary>
+    /// Abre o ticket selecionado e envia a reimpressão.
+    /// </summary>
     private async Task ReprintTicketAsync(TicketDto? ticket)
     {
         if (ticket is null)

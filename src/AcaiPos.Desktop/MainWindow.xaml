@@ -1346,13 +1346,21 @@
                                         ToolTip="Fechar"
                                         Command="{Binding CancelPaymentCommand}"/>
                             </Grid>
-                            <TextBlock Text="{Binding PayableTotalLabel}" FontFamily="{StaticResource FontDisplay}" FontSize="40" Foreground="{StaticResource BrushAccent}" Margin="0,8,0,4"/>
-                            <TextBlock Style="{StaticResource MutedText}" Margin="0,0,0,12">
-                                <Run Text="Pago: "/><Run Text="{Binding PaymentPaidLabel, Mode=OneWay}"/><Run Text=" · Restante: "/><Run Text="{Binding PaymentRemainingLabel, Mode=OneWay}"/>
-                            </TextBlock>
 
-                            <TextBlock Text="Desconto" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
-                            <TextBox Text="{Binding DiscountAmountText, UpdateSourceTrigger=LostFocus}" Style="{StaticResource FieldTextBox}"/>
+                            <Grid Margin="0,16,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,6,0">
+                                    <TextBlock Text="Desconto" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding DiscountAmountText, UpdateSourceTrigger=LostFocus}" Style="{StaticResource FieldTextBox}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="6,0,0,0">
+                                    <TextBlock Text="Acréscimo" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding SurchargeAmountText, UpdateSourceTrigger=LostFocus}" Style="{StaticResource FieldTextBox}"/>
+                                </StackPanel>
+                            </Grid>
 
                             <StackPanel Visibility="{Binding DiscountAuthVisibility}" Margin="0,10,0,0">
                                 <TextBlock Text="Autorização de desconto (gerente ou administrador)" Foreground="{StaticResource BrushWarning}" FontWeight="SemiBold" Margin="0,0,0,8" TextWrapping="Wrap"/>
@@ -1390,63 +1398,102 @@
                                 </TextBlock>
                             </StackPanel>
 
-                            <TextBlock Text="Valor desta parcela" Style="{StaticResource MutedText}" Margin="0,14,0,6"/>
-                            <TextBox Text="{Binding PartialPaymentAmountText, UpdateSourceTrigger=LostFocus}" Style="{StaticResource FieldTextBox}"/>
+                            <TextBlock Margin="0,16,0,0" FontFamily="{StaticResource FontDisplay}" FontSize="32" Foreground="{StaticResource BrushAccent}"
+                                       Text="{Binding PayableTotalLabel}"/>
+                            <TextBlock Style="{StaticResource MutedText}" Margin="0,0,0,12">
+                                <Run Text="Pago: "/><Run Text="{Binding PaymentPaidLabel, Mode=OneWay}"/><Run Text=" · "/><Run Text="{Binding PaymentBalanceLabel, Mode=OneWay}"/>
+                            </TextBlock>
 
-                            <UniformGrid Columns="2" Margin="0,12,0,0">
-                                <Button Content="PIX (parcela)" Style="{StaticResource SuccessTouchButton}" Height="56"
-                                        Command="{Binding AddPartialPaymentCommand}" CommandParameter="Pix"/>
-                                <Button Content="Débito (parcela)" Style="{StaticResource TouchButton}" Height="56"
-                                        Command="{Binding AddPartialPaymentCommand}" CommandParameter="DebitCard"/>
-                                <Button Content="Crédito (parcela)" Style="{StaticResource TouchButton}" Height="56"
-                                        Command="{Binding AddPartialPaymentCommand}" CommandParameter="CreditCard"/>
-                                <Button Content="Dinheiro (parcela)" Style="{StaticResource TouchButton}" Height="56"
-                                        Command="{Binding AddPartialPaymentCommand}" CommandParameter="Cash"/>
-                            </UniformGrid>
+                            <Border Background="{StaticResource BrushBgElevated}" CornerRadius="16" Padding="12" MinHeight="140">
+                                <StackPanel>
+                                    <TextBlock Text="Nenhuma forma de pagamento lançada."
+                                               Style="{StaticResource MutedText}"
+                                               Visibility="{Binding PaymentLinesEmptyVisibility}"/>
+                                    <ItemsControl ItemsSource="{Binding PaymentLines}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{StaticResource BrushBgPanel}" CornerRadius="10" Padding="10" Margin="0,0,0,6">
+                                                    <DockPanel>
+                                                        <Button DockPanel.Dock="Right" Style="{StaticResource GhostTouchButton}" Padding="12,8" Margin="8,0,0,0"
+                                                                ToolTip="Remover"
+                                                                Command="{Binding DataContext.RemovePaymentLineCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding}">
+                                                            <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="16"/>
+                                                        </Button>
+                                                        <TextBlock Foreground="{StaticResource BrushTextPrimary}" VerticalAlignment="Center" FontSize="16">
+                                                            <Run Text="{Binding MethodLabel, Mode=OneWay}"/>
+                                                            <Run Text=" · "/>
+                                                            <Run Text="{Binding AmountLabel, Mode=OneWay}"/>
+                                                        </TextBlock>
+                                                    </DockPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
 
-                            <UniformGrid Columns="2" Margin="0,8,0,0">
-                                <Button Content="Pagar restante PIX" Style="{StaticResource GhostTouchButton}" Height="48"
-                                        Command="{Binding PayFullCommand}" CommandParameter="Pix"/>
-                                <Button Content="Pagar restante Dinheiro" Style="{StaticResource GhostTouchButton}" Height="48"
-                                        Command="{Binding PayFullCommand}" CommandParameter="Cash"/>
-                            </UniformGrid>
+                            <Button Content="Pagar" Style="{StaticResource TouchButton}" Height="64" Margin="0,16,0,0"
+                                    Command="{Binding OpenPaymentMethodCommand}"/>
+                            <Button Content="Gravar" Style="{StaticResource PrimaryTouchButton}" Height="64" Margin="0,8,0,0"
+                                    Command="{Binding SavePaymentCommand}"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+            </Border>
 
-                            <TextBlock Text="Valor recebido (dinheiro)" Style="{StaticResource MutedText}" Margin="0,14,0,6"/>
-                            <TextBox Text="{Binding CashReceivedText, UpdateSourceTrigger=LostFocus}" Style="{StaticResource FieldTextBox}"/>
-                            <TextBlock Text="{Binding CashChangeLabel}" Foreground="{StaticResource BrushWarning}" FontSize="16" FontWeight="SemiBold" Margin="0,8,0,0"/>
+            <!-- Payment method overlay -->
+            <Border Grid.Row="0" Grid.RowSpan="2" Panel.ZIndex="40" Background="#CC0F1419" Visibility="{Binding PaymentMethodPanelVisibility}">
+                <Border Background="{StaticResource BrushBgPanel}" CornerRadius="24" Padding="28" Width="520"
+                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Grid>
+                        <StackPanel Visibility="{Binding PaymentMethodListVisibility}">
+                            <Grid>
+                                <TextBlock Text="Forma de pagamento" Style="{StaticResource TitleText}" FontSize="28" VerticalAlignment="Center"/>
+                                <Button Content="✕" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                        Style="{StaticResource GhostTouchButton}" Padding="14,8" Margin="0"
+                                        ToolTip="Voltar"
+                                        Command="{Binding ClosePaymentMethodCommand}"/>
+                            </Grid>
+                            <TextBlock Text="Escolha como receber este valor." Style="{StaticResource MutedText}" Margin="0,8,0,16"/>
+                            <Button Content="PIX" Style="{StaticResource SuccessTouchButton}" Height="64" Margin="0,0,0,8"
+                                    Command="{Binding SelectPaymentMethodCommand}" CommandParameter="Pix"/>
+                            <Button Content="Débito" Style="{StaticResource TouchButton}" Height="64" Margin="0,0,0,8"
+                                    Command="{Binding SelectPaymentMethodCommand}" CommandParameter="DebitCard"/>
+                            <Button Content="Crédito" Style="{StaticResource TouchButton}" Height="64" Margin="0,0,0,8"
+                                    Command="{Binding SelectPaymentMethodCommand}" CommandParameter="CreditCard"/>
+                            <Button Content="Dinheiro" Style="{StaticResource TouchButton}" Height="64"
+                                    Command="{Binding SelectPaymentMethodCommand}" CommandParameter="Cash"/>
+                        </StackPanel>
 
-                            <ItemsControl ItemsSource="{Binding PaymentLines}" Margin="0,14,0,0">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Background="{StaticResource BrushBgElevated}" CornerRadius="10" Padding="10" Margin="0,0,0,6">
-                                            <DockPanel>
-                                                <Button Content="X" DockPanel.Dock="Right" Style="{StaticResource GhostTouchButton}" Padding="10,6"
-                                                        Command="{Binding DataContext.RemovePaymentLineCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                        CommandParameter="{Binding}"/>
-                                                <TextBlock Foreground="{StaticResource BrushTextPrimary}" VerticalAlignment="Center">
-                                                    <Run Text="{Binding MethodLabel, Mode=OneWay}"/>
-                                                    <Run Text=" · "/>
-                                                    <Run Text="{Binding AmountLabel, Mode=OneWay}"/>
-                                                </TextBlock>
-                                            </DockPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <Grid Margin="0,16,0,0">
+                        <StackPanel Visibility="{Binding PaymentAmountEntryVisibility}">
+                            <Grid>
+                                <TextBlock Text="{Binding SelectedPaymentMethodLabel}" Style="{StaticResource TitleText}" FontSize="28" VerticalAlignment="Center"/>
+                                <Button Content="✕" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                        Style="{StaticResource GhostTouchButton}" Padding="14,8" Margin="0"
+                                        ToolTip="Voltar"
+                                        Command="{Binding ClosePaymentMethodCommand}"/>
+                            </Grid>
+                            <TextBlock Text="Confirme o saldo ou informe um valor menor." Style="{StaticResource MutedText}" Margin="0,8,0,16" TextWrapping="Wrap"/>
+                            <TextBlock Text="Valor" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                            <TextBox Text="{Binding PaymentEntryAmountText, UpdateSourceTrigger=LostFocus}" Style="{StaticResource FieldTextBox}"/>
+                            <TextBlock Text="{Binding PaymentEntryMessage}" Foreground="{StaticResource BrushWarning}" FontWeight="SemiBold"
+                                       Margin="0,8,0,0" TextWrapping="Wrap" Visibility="{Binding PaymentEntryMessageVisibility}"/>
+                            <TextBlock Style="{StaticResource MutedText}" Margin="0,8,0,0">
+                                <Run Text="Saldo restante: "/><Run Text="{Binding PaymentRemainingLabel, Mode=OneWay}"/>
+                            </TextBlock>
+                            <Grid Margin="0,20,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <Button Content="Limpar" Style="{StaticResource GhostTouchButton}" Height="56" Command="{Binding ResetPaymentCommand}"/>
-                                <Button Grid.Column="1" Content="Cancelar" Style="{StaticResource GhostTouchButton}" Height="56" Command="{Binding CancelPaymentCommand}"/>
-                                <Button Grid.Column="2" Content="Concluir venda" Style="{StaticResource PrimaryTouchButton}" Height="56"
-                                        Command="{Binding CompleteMixedPaymentCommand}"/>
+                                <Button Content="Voltar" Style="{StaticResource GhostTouchButton}" Height="56"
+                                        Command="{Binding BackToPaymentMethodsCommand}"/>
+                                <Button Grid.Column="1" Content="Aceitar" Style="{StaticResource PrimaryTouchButton}" Height="56"
+                                        Command="{Binding AcceptPaymentAmountCommand}"/>
                             </Grid>
                         </StackPanel>
-                    </ScrollViewer>
+                    </Grid>
                 </Border>
             </Border>
 
