@@ -21,6 +21,7 @@ public sealed class PosDbContext : DbContext, IPosDbContext
     public DbSet<Sale> Sales => Set<Sale>();
     public DbSet<SaleItem> SaleItems => Set<SaleItem>();
     public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<FormaPagamento> FormasPagamento => Set<FormaPagamento>();
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
 
@@ -35,6 +36,7 @@ public sealed class PosDbContext : DbContext, IPosDbContext
     IQueryable<Sale> IPosDbContext.Sales => Sales;
     IQueryable<SaleItem> IPosDbContext.SaleItems => SaleItems;
     IQueryable<Payment> IPosDbContext.Payments => Payments;
+    IQueryable<FormaPagamento> IPosDbContext.FormasPagamento => FormasPagamento;
     IQueryable<StockMovement> IPosDbContext.StockMovements => StockMovements;
     IQueryable<AuditEntry> IPosDbContext.AuditEntries => AuditEntries;
 

@@ -19,6 +19,7 @@ public interface IPosDbContext
     IQueryable<Sale> Sales { get; }
     IQueryable<SaleItem> SaleItems { get; }
     IQueryable<Payment> Payments { get; }
+    IQueryable<FormaPagamento> FormasPagamento { get; }
     IQueryable<StockMovement> StockMovements { get; }
     IQueryable<AuditEntry> AuditEntries { get; }
 

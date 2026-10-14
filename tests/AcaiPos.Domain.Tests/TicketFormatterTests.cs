@@ -28,7 +28,7 @@ public class TicketFormatterTests
                 new TicketItemDto("Açaí 500ml", "ACAI-500", 2, 25m, 0m, 50m)
             ],
             [
-                new TicketPaymentDto(PaymentMethod.Cash, "Dinheiro", 50m, 60m, 10m)
+                new TicketPaymentDto("Dinheiro", 50m, 60m, 10m)
             ],
             IsReprint: true);
 

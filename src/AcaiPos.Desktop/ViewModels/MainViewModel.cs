@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Media;
 using AcaiPos.Application.Abstractions;
 using AcaiPos.Application.Models;
 using AcaiPos.Application.Services;
@@ -14,11 +15,58 @@ namespace AcaiPos.Desktop.ViewModels;
 /// </summary>
 public sealed class PaymentLineViewModel : ObservableObject
 {
-    public PaymentMethod Method { get; init; }
+    public int FormaPagamentoId { get; init; }
     public string MethodLabel { get; init; } = string.Empty;
+    public bool CalculaTroco { get; init; }
     public decimal Amount { get; init; }
     public decimal? AmountReceived { get; init; }
     public string AmountLabel => Amount.ToString("C");
+}
+
+/// <summary>
+/// Botão de forma de pagamento montado a partir da tabela FormasPagamento.
+/// </summary>
+public sealed class PaymentMethodButtonViewModel
+{
+    public const string DefaultButtonColor = "#2A3642";
+
+    public int Id { get; init; }
+    public string Descricao { get; init; } = string.Empty;
+    public bool CalculaTroco { get; init; }
+    public bool IsParcela { get; init; }
+    public Brush ButtonBrush { get; init; } = FrozenBrush(DefaultButtonColor);
+
+    public static PaymentMethodButtonViewModel From(FormaPagamentoDto forma) => new()
+    {
+        Id = forma.Id,
+        Descricao = forma.Descricao,
+        CalculaTroco = forma.CalculaTroco,
+        IsParcela = forma.IsParcela,
+        ButtonBrush = FrozenBrush(forma.CorRgbBotao)
+    };
+
+    private static SolidColorBrush FrozenBrush(string? color)
+    {
+        var brush = new SolidColorBrush(ParseColor(color));
+        brush.Freeze();
+        return brush;
+    }
+
+    private static Color ParseColor(string? color)
+    {
+        var text = color?.Trim();
+        if (!string.IsNullOrEmpty(text)
+            && text.Length == 7
+            && text[0] == '#'
+            && text[1..].All(Uri.IsHexDigit))
+        {
+            var converted = ColorConverter.ConvertFromString(text);
+            if (converted is Color parsed)
+                return parsed;
+        }
+
+        return (Color)ColorConverter.ConvertFromString(DefaultButtonColor)!;
+    }
 }
 
 /// <summary>
@@ -104,6 +152,7 @@ public sealed class MainViewModel : ObservableObject
     private string _paymentMethodPanelVisibility = "Collapsed";
     private bool _isEnteringPaymentAmount;
     private decimal _paymentEntryAmount;
+    private decimal _paymentReceivedAmount;
     private string _paymentEntryMessage = string.Empty;
     private decimal _discountAmount;
     private decimal _surchargeAmount;
@@ -111,7 +160,7 @@ public sealed class MainViewModel : ObservableObject
     private string _discountAuthorizerPin = string.Empty;
     private bool _discountAuthorized;
     private string _discountAuthMessage = "Informe usuário e PIN do gerente ou administrador.";
-    private PaymentMethod _selectedPaymentMethod = PaymentMethod.Pix;
+    private PaymentMethodButtonViewModel? _selectedPaymentMethod;
     private string _lastTicketInfo = string.Empty;
     private bool _showCashOpenPanel;
     private bool _showCashClosePanel;
@@ -261,6 +310,7 @@ public sealed class MainViewModel : ObservableObject
     public ObservableCollection<CashMovementDto> CashMovements { get; } = [];
     public ObservableCollection<TicketDto> TodayTickets { get; } = [];
     public ObservableCollection<PaymentLineViewModel> PaymentLines { get; } = [];
+    public ObservableCollection<PaymentMethodButtonViewModel> PaymentMethods { get; } = [];
 
     public RelayCommand LoginCommand { get; }
     public RelayCommand LogoutCommand { get; }
@@ -587,7 +637,15 @@ public sealed class MainViewModel : ObservableObject
 
     public string PaymentLinesEmptyVisibility => PaymentLines.Count == 0 ? "Visible" : "Collapsed";
 
-    public string SelectedPaymentMethodLabel => MethodLabel(SelectedPaymentMethod);
+    public string SelectedPaymentMethodLabel => SelectedPaymentMethod?.Descricao ?? string.Empty;
+
+    public string AsksReceivedAmountVisibility =>
+        SelectedPaymentMethod?.CalculaTroco == true ? "Visible" : "Collapsed";
+
+    public string PaymentChangeLabel =>
+        (SelectedPaymentMethod?.CalculaTroco == true
+            ? Math.Max(0, decimal.Round(PaymentReceivedAmount - PaymentEntryAmount, 2))
+            : 0m).ToString("C");
 
     public decimal PaymentEntryAmount
     {
@@ -600,6 +658,7 @@ public sealed class MainViewModel : ObservableObject
 
             _paymentEntryAmount = rounded;
             RaisePropertyChanged();
+            RaisePropertyChanged(nameof(PaymentChangeLabel));
             DeferMoneyTextRefresh(nameof(PaymentEntryAmountText));
         }
     }
@@ -608,6 +667,28 @@ public sealed class MainViewModel : ObservableObject
     {
         get => _paymentEntryAmount.ToString("N2");
         set => ApplyMoneyText(value, amount => PaymentEntryAmount = amount, nameof(PaymentEntryAmountText));
+    }
+
+    public decimal PaymentReceivedAmount
+    {
+        get => _paymentReceivedAmount;
+        set
+        {
+            var rounded = decimal.Round(Math.Max(0, value), 2);
+            if (_paymentReceivedAmount == rounded)
+                return;
+
+            _paymentReceivedAmount = rounded;
+            RaisePropertyChanged();
+            RaisePropertyChanged(nameof(PaymentChangeLabel));
+            DeferMoneyTextRefresh(nameof(PaymentReceivedAmountText));
+        }
+    }
+
+    public string PaymentReceivedAmountText
+    {
+        get => _paymentReceivedAmount.ToString("N2");
+        set => ApplyMoneyText(value, amount => PaymentReceivedAmount = amount, nameof(PaymentReceivedAmountText));
     }
 
     public string PaymentEntryMessage
@@ -756,13 +837,15 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _discountAuthMessage, value);
     }
 
-    public PaymentMethod SelectedPaymentMethod
+    public PaymentMethodButtonViewModel? SelectedPaymentMethod
     {
         get => _selectedPaymentMethod;
-        set
+        private set
         {
             SetProperty(ref _selectedPaymentMethod, value);
             RaisePropertyChanged(nameof(SelectedPaymentMethodLabel));
+            RaisePropertyChanged(nameof(AsksReceivedAmountVisibility));
+            RaisePropertyChanged(nameof(PaymentChangeLabel));
         }
     }
 
@@ -1069,7 +1152,7 @@ public sealed class MainViewModel : ObservableObject
 
         CountedAmount = summary.ExpectedCash;
         CashSummaryText =
-            $"Abertura {summary.OpeningAmount:C} · Vendas dinheiro {summary.CashSales:C} · " +
+            $"Abertura {summary.OpeningAmount:C} · Vendas com troco {summary.CashSales:C} · " +
             $"Suprimentos {summary.Supplies:C} · Sangrias {summary.Withdrawals:C} · Esperado {summary.ExpectedCash:C}";
         ShowCashMovementPanel = false;
         ShowCashClosePanel = true;
@@ -1116,6 +1199,18 @@ public sealed class MainViewModel : ObservableObject
 
         _selectedCategoryId = null;
         await LoadProductsAsync();
+        await LoadPaymentMethodsAsync();
+    }
+
+    /// <summary>
+    /// Carrega as formas de pagamento habilitadas, na ordem da tabela.
+    /// </summary>
+    private async Task LoadPaymentMethodsAsync()
+    {
+        var formas = await _saleService.ListPaymentMethodsAsync(enabledOnly: true);
+        PaymentMethods.Clear();
+        foreach (var forma in formas)
+            PaymentMethods.Add(PaymentMethodButtonViewModel.From(forma));
     }
 
     /// <summary>
@@ -1341,11 +1436,12 @@ public sealed class MainViewModel : ObservableObject
     /// </summary>
     private void SelectPaymentMethod(object? parameter)
     {
-        if (parameter is not string methodText || !Enum.TryParse<PaymentMethod>(methodText, out var method))
+        if (parameter is not PaymentMethodButtonViewModel method)
             return;
 
         SelectedPaymentMethod = method;
         PaymentEntryAmount = PaymentRemaining;
+        PaymentReceivedAmount = PaymentRemaining;
         PaymentEntryMessage = string.Empty;
         _isEnteringPaymentAmount = true;
         RaisePropertyChanged(nameof(PaymentMethodListVisibility));
@@ -1377,11 +1473,27 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
+        if (SelectedPaymentMethod is not { } method)
+            return;
+
+        decimal? received = null;
+        if (method.CalculaTroco)
+        {
+            received = decimal.Round(PaymentReceivedAmount, 2);
+            if (received < amount)
+            {
+                PaymentEntryMessage = "O valor recebido não pode ser menor que o valor pago.";
+                return;
+            }
+        }
+
         PaymentLines.Add(new PaymentLineViewModel
         {
-            Method = SelectedPaymentMethod,
-            MethodLabel = MethodLabel(SelectedPaymentMethod),
-            Amount = amount
+            FormaPagamentoId = method.Id,
+            MethodLabel = method.Descricao,
+            CalculaTroco = method.CalculaTroco,
+            Amount = amount,
+            AmountReceived = received
         });
 
         ClosePaymentMethodPanel();
@@ -1428,19 +1540,7 @@ public sealed class MainViewModel : ObservableObject
     /// Converte a parcela da tela para o rascunho aceito pelo serviço de venda.
     /// </summary>
     private static PaymentDraftDto ToDraft(PaymentLineViewModel line)
-        => new(line.Method, line.Amount, line.AmountReceived);
-
-    /// <summary>
-    /// Rótulo em português da forma de pagamento.
-    /// </summary>
-    private static string MethodLabel(PaymentMethod method) => method switch
-    {
-        PaymentMethod.Cash => "Dinheiro",
-        PaymentMethod.DebitCard => "Débito",
-        PaymentMethod.CreditCard => "Crédito",
-        PaymentMethod.Pix => "PIX",
-        _ => method.ToString()
-    };
+        => new(line.FormaPagamentoId, line.MethodLabel, line.CalculaTroco, line.Amount, line.AmountReceived);
 
     /// <summary>
     /// Valida o desconto ao sair do campo, se usuário e PIN já estiverem preenchidos.

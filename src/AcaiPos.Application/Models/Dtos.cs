@@ -61,7 +61,9 @@ public sealed record CartItemDto(
     decimal Subtotal);
 
 public sealed record PaymentDraftDto(
-    PaymentMethod Method,
+    int FormaPagamentoId,
+    string Descricao,
+    bool CalculaTroco,
     decimal Amount,
     decimal? AmountReceived = null);
 
@@ -109,7 +111,7 @@ public sealed record SaleHistoryFilter(
     Guid? OperatorId = null,
     Guid? TerminalId = null,
     SaleStatus? Status = null,
-    PaymentMethod? PaymentMethod = null,
+    string? PaymentDescription = null,
     string? Search = null);
 
 public sealed record SaleHistoryTotalsDto(
@@ -121,10 +123,19 @@ public sealed record SaleHistoryTotalsDto(
 
 public sealed record OperatorOptionDto(Guid Id, string Name);
 
+public sealed record FormaPagamentoDto(
+    int Id,
+    string Descricao,
+    bool CalculaTroco,
+    bool IsParcela,
+    string CorRgbBotao,
+    int Ordem,
+    bool IsEnable);
+
 public sealed record TerminalOptionDto(Guid Id, string Code, string Name);
 
 public sealed record PaymentInfoDto(
-    PaymentMethod Method,
+    string Descricao,
     decimal Amount,
     decimal ChangeAmount);
 
@@ -137,7 +148,6 @@ public sealed record TicketItemDto(
     decimal Subtotal);
 
 public sealed record TicketPaymentDto(
-    PaymentMethod Method,
     string MethodLabel,
     decimal Amount,
     decimal? AmountReceived,
@@ -178,8 +188,6 @@ public sealed record CashRegisterSummaryDto(
     string OperatorName,
     string TerminalCode,
     decimal CashSales,
-    decimal CardSales,
-    decimal PixSales,
     decimal Supplies,
     decimal Withdrawals,
     decimal ExpectedCash);
@@ -201,6 +209,8 @@ public sealed record CashSessionMovementDto(
     DateTime OccurredAt,
     string OperatorName);
 
+public sealed record PaymentTotalDto(string Label, decimal Amount);
+
 public sealed record CashSessionDetailDto(
     Guid Id,
     DateTime OpenedAt,
@@ -209,15 +219,12 @@ public sealed record CashSessionDetailDto(
     string OperatorName,
     string TerminalCode,
     decimal OpeningAmount,
-    decimal CashSales,
-    decimal DebitSales,
-    decimal CreditSales,
-    decimal PixSales,
     decimal TotalSold,
     decimal Supplies,
     decimal Withdrawals,
     decimal CashBalance,
     decimal GeneralBalance,
+    IReadOnlyList<PaymentTotalDto> PaymentTotals,
     IReadOnlyList<CashSessionMovementDto> WithdrawalsList,
     IReadOnlyList<CashSessionMovementDto> SuppliesList);
 

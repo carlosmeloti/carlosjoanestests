@@ -191,7 +191,8 @@ internal sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
     {
         builder.ToTable("Payments");
         builder.HasKey(x => x.Id);
-        builder.Property(x => x.Method).HasConversion<int>();
+        builder.Property(x => x.FormaPagamentoId).IsRequired();
+        builder.Property(x => x.Descricao).HasMaxLength(50).IsRequired();
         builder.Property(x => x.Status).HasConversion<int>();
         builder.Property(x => x.Amount).HasPrecision(18, 2);
         builder.Property(x => x.AmountReceived).HasPrecision(18, 2);
@@ -225,5 +226,21 @@ internal sealed class AuditEntryConfiguration : IEntityTypeConfiguration<AuditEn
         builder.Property(x => x.EntityName).HasMaxLength(80).IsRequired();
         builder.Property(x => x.Details).HasMaxLength(1000);
         builder.HasIndex(x => x.OccurredAt);
+    }
+}
+
+internal sealed class FormaPagamentoConfiguration : IEntityTypeConfiguration<FormaPagamento>
+{
+    public void Configure(EntityTypeBuilder<FormaPagamento> builder)
+    {
+        builder.ToTable("FormasPagamento");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Id).ValueGeneratedOnAdd();
+        builder.Property(x => x.Descricao).HasMaxLength(50).IsRequired();
+        builder.Property(x => x.CalculaTroco).HasDefaultValue(false);
+        builder.Property(x => x.IsParcela).HasDefaultValue(false);
+        builder.Property(x => x.IsEnable).HasDefaultValue(true);
+        builder.Property(x => x.CorRgbBotao).HasMaxLength(7).IsRequired().HasDefaultValue(FormaPagamento.DefaultButtonColor);
+        builder.Property(x => x.Ordem).IsRequired();
     }
 }

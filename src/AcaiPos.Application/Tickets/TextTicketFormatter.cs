@@ -50,7 +50,7 @@ public sealed class TextTicketFormatter : ITicketFormatter
         foreach (var payment in ticket.Payments)
         {
             sb.AppendLine(Pair(payment.MethodLabel, payment.Amount));
-            if (payment.Method == PaymentMethod.Cash && payment.AmountReceived.HasValue)
+            if (payment.AmountReceived.HasValue)
                 sb.AppendLine(Pair("  Recebido", payment.AmountReceived.Value));
         }
 

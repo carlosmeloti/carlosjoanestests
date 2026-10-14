@@ -13,7 +13,7 @@ public class SaleTests
         var sale = Sale.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "T20260101-0001");
 
         sale.AddItem(product, 2);
-        sale.AddPayment(PaymentMethod.Cash, 50m, 60m);
+        sale.AddPayment(4, "Dinheiro", true, 50m, 60m);
         sale.Complete();
 
         Assert.Equal(SaleStatus.Completed, sale.Status);
@@ -29,8 +29,8 @@ public class SaleTests
         var sale = Sale.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "T20260101-0002");
 
         sale.AddItem(product, 1);
-        sale.AddPayment(PaymentMethod.Cash, 40m, 40m);
-        sale.AddPayment(PaymentMethod.Pix, 60m);
+        sale.AddPayment(4, "Dinheiro", true, 40m, 40m);
+        sale.AddPayment(1, "PIX", false, 60m);
 
         sale.Complete();
 
@@ -51,7 +51,7 @@ public class SaleTests
 
         Assert.Equal(95m, sale.Total);
 
-        sale.AddPayment(PaymentMethod.Pix, 95m);
+        sale.AddPayment(1, "PIX", false, 95m);
         sale.Complete();
 
         Assert.Equal(SaleStatus.Completed, sale.Status);

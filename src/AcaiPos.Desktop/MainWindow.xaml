@@ -54,7 +54,8 @@
                         <TextBox Text="{Binding Pin, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource FieldTextBox}"
                                  FontFamily="{StaticResource FontDisplay}"
-                                 FontSize="28"/>
+                                 FontSize="28"
+                                 MaxLength="8"/>
 
                         <UniformGrid Columns="3" Margin="0,18,0,0">
                             <Button Style="{StaticResource PinButton}" Content="1" Command="{Binding AppendPinCommand}" CommandParameter="1"/>
@@ -377,13 +378,27 @@
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
                                                 </Grid.ColumnDefinitions>
-                                                <StackPanel>
+                                                <StackPanel VerticalAlignment="Center">
                                                     <TextBlock Text="{Binding ProductName}" Foreground="{StaticResource BrushTextPrimary}" FontWeight="SemiBold" FontSize="16" TextWrapping="Wrap"/>
                                                     <TextBlock Text="{Binding UnitPriceLabel}" Style="{StaticResource MutedText}" Margin="0,4,0,0"/>
                                                     <TextBlock Text="{Binding SubtotalLabel}" Foreground="{StaticResource BrushAccent}" FontFamily="{StaticResource FontDisplay}" FontSize="18" Margin="0,6,0,0"/>
                                                 </StackPanel>
-                                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Button Grid.Column="1" Width="48" Height="48" Margin="8,0" Padding="0"
+                                                        Style="{StaticResource GhostTouchButton}"
+                                                        Background="{StaticResource BrushAccentSoft}"
+                                                        BorderBrush="{StaticResource BrushAccent}"
+                                                        ToolTip="Excluir item"
+                                                        VerticalAlignment="Center" HorizontalAlignment="Center"
+                                                        Command="{Binding DataContext.RemoveItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}">
+                                                    <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="16"
+                                                               Width="28" TextAlignment="Center"
+                                                               Foreground="{StaticResource BrushAccent}"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Button>
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
                                                     <Button Content="−" Width="48" Height="48" Style="{StaticResource TouchButton}" Margin="2"
                                                             Command="{Binding DataContext.DecreaseItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                             CommandParameter="{Binding}"/>
@@ -403,6 +418,7 @@
                                                                  Visibility="{Binding IsEditingQuantity, Converter={StaticResource BoolToVis}}"
                                                                  Style="{StaticResource FieldTextBox}"
                                                                  Height="48" Padding="6,8" FontSize="18" FontWeight="Bold" TextAlignment="Center"
+                                                                 behaviors:NumericKeypad.IsEnabled="True"
                                                                  behaviors:QuantityEditAssist.CommitCommand="{Binding DataContext.CommitQuantityCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                  behaviors:QuantityEditAssist.CancelCommand="{Binding DataContext.CancelQuantityEditCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
                                                     </Grid>
@@ -563,11 +579,13 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Margin="0,0,6,0">
                                         <TextBlock Text="Preço venda" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
-                                        <TextBox Text="{Binding ProductSalePrice, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Style="{StaticResource FieldTextBox}"/>
+                                        <TextBox Text="{Binding ProductSalePrice, UpdateSourceTrigger=LostFocus, StringFormat=N2}" Style="{StaticResource FieldTextBox}"
+                                                 behaviors:NumericKeypad.IsEnabled="True"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Margin="6,0,0,0">
                                         <TextBlock Text="Custo" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
-                                        <TextBox Text="{Binding ProductCostPrice, UpdateSourceTrigger=PropertyChanged, StringFormat=N2, TargetNullValue=''}" Style="{StaticResource FieldTextBox}"/>
+                                        <TextBox Text="{Binding ProductCostPrice, UpdateSourceTrigger=LostFocus, StringFormat=N2, TargetNullValue=''}" Style="{StaticResource FieldTextBox}"
+                                                 behaviors:NumericKeypad.IsEnabled="True"/>
                                     </StackPanel>
                                 </Grid>
 
@@ -578,7 +596,8 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Margin="0,0,6,0">
                                         <TextBlock Text="Estoque" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
-                                        <TextBox Text="{Binding ProductStock, UpdateSourceTrigger=PropertyChanged, StringFormat=0.###}" Style="{StaticResource FieldTextBox}"/>
+                                        <TextBox Text="{Binding ProductStock, UpdateSourceTrigger=LostFocus, StringFormat=0.###}" Style="{StaticResource FieldTextBox}"
+                                                 behaviors:NumericKeypad.IsEnabled="True"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Margin="6,0,0,0">
                                         <TextBlock Text="Unidade" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
@@ -641,7 +660,9 @@
                                      Height="90" TextWrapping="Wrap" AcceptsReturn="True" VerticalContentAlignment="Top"/>
 
                             <TextBlock Text="Ordem" Style="{StaticResource MutedText}" Margin="0,12,0,6"/>
-                            <TextBox Text="{Binding CategorySortOrder, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"/>
+                            <TextBox Text="{Binding CategorySortOrder, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                     behaviors:NumericKeypad.IsEnabled="True"
+                                     behaviors:NumericKeypad.AllowDecimal="False"/>
 
                             <CheckBox Content="Categoria ativa" Style="{StaticResource FieldCheckBox}" IsChecked="{Binding CategoryIsActive}"/>
 
@@ -709,7 +730,9 @@
                                  IsEnabled="{Binding UsernameEnabled}"/>
 
                         <TextBlock Text="PIN" Style="{StaticResource MutedText}" Margin="0,12,0,6"/>
-                        <TextBox Text="{Binding Pin, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"/>
+                        <TextBox Text="{Binding Pin, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                 behaviors:NumericKeypad.IsEnabled="True"
+                                 behaviors:NumericKeypad.AllowDecimal="False"/>
 
                         <TextBlock Text="Perfil" Style="{StaticResource MutedText}" Margin="0,12,0,6"/>
                         <ComboBox Style="{StaticResource FieldComboBox}"
@@ -937,7 +960,9 @@
                                 <TextBox Text="{Binding AuthorizerUsername, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"/>
                                 <TextBlock Text="PIN" Style="{StaticResource MutedText}" Margin="0,12,0,6"/>
                                 <TextBox Text="{Binding AuthorizerPin, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
-                                         FontFamily="{StaticResource FontDisplay}" FontSize="22"/>
+                                         FontFamily="{StaticResource FontDisplay}" FontSize="22"
+                                         behaviors:NumericKeypad.IsEnabled="True"
+                                         behaviors:NumericKeypad.AllowDecimal="False"/>
                             </StackPanel>
 
                             <TextBlock Text="{Binding Message}" Style="{StaticResource MutedText}" Margin="0,14,0,0" TextWrapping="Wrap"/>
@@ -1212,39 +1237,32 @@
                         <TextBlock Text="Ciclo fechado. Inclusão e exclusão ficam disponíveis só no caixa aberto."
                                    Style="{StaticResource MutedText}" Margin="0,0,0,10"
                                    Visibility="{Binding ReadOnlyHintVisibility}"/>
-                        <UniformGrid Columns="5">
-                            <Border Background="{StaticResource BrushBgElevated}" CornerRadius="12" Padding="12" Margin="0,0,8,0">
-                                <StackPanel>
-                                    <TextBlock Text="Dinheiro" Style="{StaticResource MutedText}"/>
-                                    <TextBlock Text="{Binding CashSalesLabel}" FontFamily="{StaticResource FontDisplay}" FontSize="20" Foreground="{StaticResource BrushTextPrimary}" Margin="0,4,0,0"/>
-                                </StackPanel>
-                            </Border>
-                            <Border Background="{StaticResource BrushBgElevated}" CornerRadius="12" Padding="12" Margin="4,0">
-                                <StackPanel>
-                                    <TextBlock Text="Débito" Style="{StaticResource MutedText}"/>
-                                    <TextBlock Text="{Binding DebitSalesLabel}" FontFamily="{StaticResource FontDisplay}" FontSize="20" Foreground="{StaticResource BrushTextPrimary}" Margin="0,4,0,0"/>
-                                </StackPanel>
-                            </Border>
-                            <Border Background="{StaticResource BrushBgElevated}" CornerRadius="12" Padding="12" Margin="4,0">
-                                <StackPanel>
-                                    <TextBlock Text="Crédito" Style="{StaticResource MutedText}"/>
-                                    <TextBlock Text="{Binding CreditSalesLabel}" FontFamily="{StaticResource FontDisplay}" FontSize="20" Foreground="{StaticResource BrushTextPrimary}" Margin="0,4,0,0"/>
-                                </StackPanel>
-                            </Border>
-                            <Border Background="{StaticResource BrushBgElevated}" CornerRadius="12" Padding="12" Margin="4,0">
-                                <StackPanel>
-                                    <TextBlock Text="PIX" Style="{StaticResource MutedText}"/>
-                                    <TextBlock Text="{Binding PixSalesLabel}" FontFamily="{StaticResource FontDisplay}" FontSize="20" Foreground="{StaticResource BrushTextPrimary}" Margin="0,4,0,0"/>
-                                </StackPanel>
-                            </Border>
-                            <Border Background="{StaticResource BrushAccentSoft}" BorderBrush="{StaticResource BrushAccent}" BorderThickness="1"
-                                    CornerRadius="12" Padding="12" Margin="8,0,0,0">
+                        <DockPanel LastChildFill="True">
+                            <Border DockPanel.Dock="Right" Background="{StaticResource BrushAccentSoft}" BorderBrush="{StaticResource BrushAccent}" BorderThickness="1"
+                                    CornerRadius="12" Padding="12" Margin="8,0,0,0" MinWidth="160">
                                 <StackPanel>
                                     <TextBlock Text="Total vendido" Foreground="{StaticResource BrushAccent}"/>
                                     <TextBlock Text="{Binding TotalSoldLabel}" FontFamily="{StaticResource FontDisplay}" FontSize="20" Foreground="{StaticResource BrushAccent}" Margin="0,4,0,0"/>
                                 </StackPanel>
                             </Border>
-                        </UniformGrid>
+                            <ItemsControl ItemsSource="{Binding PaymentTotals}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{StaticResource BrushBgElevated}" CornerRadius="12" Padding="12" Margin="0,0,8,8" MinWidth="150">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Label}" Style="{StaticResource MutedText}"/>
+                                                <TextBlock Text="{Binding AmountLabel}" FontFamily="{StaticResource FontDisplay}" FontSize="20" Foreground="{StaticResource BrushTextPrimary}" Margin="0,4,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </DockPanel>
                     </StackPanel>
                 </Border>
 
@@ -1258,7 +1276,8 @@
                                     <TextBlock Text="Nova sangria" Style="{StaticResource TitleText}" FontSize="28"/>
                                     <TextBlock Text="O lançamento entra no caixa aberto." Style="{StaticResource MutedText}" Margin="0,8,0,20"/>
                                     <TextBlock Text="Valor" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
-                                    <TextBox Text="{Binding WithdrawalAmount, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Style="{StaticResource FieldTextBox}"/>
+                                    <TextBox Text="{Binding WithdrawalAmount, UpdateSourceTrigger=LostFocus, StringFormat=N2}" Style="{StaticResource FieldTextBox}"
+                                             behaviors:NumericKeypad.IsEnabled="True"/>
                                     <TextBlock Text="Motivo" Style="{StaticResource MutedText}" Margin="0,14,0,6"/>
                                     <TextBox Text="{Binding WithdrawalReason, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"/>
                                     <Grid Margin="0,20,0,0">
@@ -1285,7 +1304,8 @@
                                     <TextBlock Text="Novo suprimento" Style="{StaticResource TitleText}" FontSize="28"/>
                                     <TextBlock Text="O lançamento entra no caixa aberto." Style="{StaticResource MutedText}" Margin="0,8,0,20"/>
                                     <TextBlock Text="Valor" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
-                                    <TextBox Text="{Binding SupplyAmount, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Style="{StaticResource FieldTextBox}"/>
+                                    <TextBox Text="{Binding SupplyAmount, UpdateSourceTrigger=LostFocus, StringFormat=N2}" Style="{StaticResource FieldTextBox}"
+                                             behaviors:NumericKeypad.IsEnabled="True"/>
                                     <TextBlock Text="Motivo" Style="{StaticResource MutedText}" Margin="0,14,0,6"/>
                                     <TextBox Text="{Binding SupplyReason, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"/>
                                     <Grid Margin="0,20,0,0">
@@ -1354,11 +1374,13 @@
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Margin="0,0,6,0">
                                     <TextBlock Text="Desconto" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
-                                    <TextBox Text="{Binding DiscountAmountText, UpdateSourceTrigger=LostFocus}" Style="{StaticResource FieldTextBox}"/>
+                                    <TextBox Text="{Binding DiscountAmountText, UpdateSourceTrigger=LostFocus}" Style="{StaticResource FieldTextBox}"
+                                             behaviors:NumericKeypad.IsEnabled="True"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Margin="6,0,0,0">
                                     <TextBlock Text="Acréscimo" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
-                                    <TextBox Text="{Binding SurchargeAmountText, UpdateSourceTrigger=LostFocus}" Style="{StaticResource FieldTextBox}"/>
+                                    <TextBox Text="{Binding SurchargeAmountText, UpdateSourceTrigger=LostFocus}" Style="{StaticResource FieldTextBox}"
+                                             behaviors:NumericKeypad.IsEnabled="True"/>
                                 </StackPanel>
                             </Grid>
 
@@ -1379,6 +1401,8 @@
                                         <TextBlock Text="PIN" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
                                         <TextBox Text="{Binding DiscountAuthorizerPin, UpdateSourceTrigger=PropertyChanged}"
                                                  Style="{StaticResource FieldTextBox}"
+                                                 behaviors:NumericKeypad.IsEnabled="True"
+                                                 behaviors:NumericKeypad.AllowDecimal="False"
                                                  LostFocus="DiscountAuthorizerField_LostFocus"/>
                                     </StackPanel>
                                 </Grid>
@@ -1456,14 +1480,16 @@
                                         Command="{Binding ClosePaymentMethodCommand}"/>
                             </Grid>
                             <TextBlock Text="Escolha como receber este valor." Style="{StaticResource MutedText}" Margin="0,8,0,16"/>
-                            <Button Content="PIX" Style="{StaticResource SuccessTouchButton}" Height="64" Margin="0,0,0,8"
-                                    Command="{Binding SelectPaymentMethodCommand}" CommandParameter="Pix"/>
-                            <Button Content="Débito" Style="{StaticResource TouchButton}" Height="64" Margin="0,0,0,8"
-                                    Command="{Binding SelectPaymentMethodCommand}" CommandParameter="DebitCard"/>
-                            <Button Content="Crédito" Style="{StaticResource TouchButton}" Height="64" Margin="0,0,0,8"
-                                    Command="{Binding SelectPaymentMethodCommand}" CommandParameter="CreditCard"/>
-                            <Button Content="Dinheiro" Style="{StaticResource TouchButton}" Height="64"
-                                    Command="{Binding SelectPaymentMethodCommand}" CommandParameter="Cash"/>
+                            <ItemsControl ItemsSource="{Binding PaymentMethods}" HorizontalContentAlignment="Stretch">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Content="{Binding Descricao}" Style="{StaticResource TouchButton}" Height="64" Margin="0,0,0,8"
+                                                Background="{Binding ButtonBrush}"
+                                                Command="{Binding DataContext.SelectPaymentMethodCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
 
                         <StackPanel Visibility="{Binding PaymentAmountEntryVisibility}">
@@ -1476,7 +1502,16 @@
                             </Grid>
                             <TextBlock Text="Confirme o saldo ou informe um valor menor." Style="{StaticResource MutedText}" Margin="0,8,0,16" TextWrapping="Wrap"/>
                             <TextBlock Text="Valor" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
-                            <TextBox Text="{Binding PaymentEntryAmountText, UpdateSourceTrigger=LostFocus}" Style="{StaticResource FieldTextBox}"/>
+                            <TextBox Text="{Binding PaymentEntryAmountText, UpdateSourceTrigger=LostFocus}" Style="{StaticResource FieldTextBox}"
+                                     behaviors:NumericKeypad.IsEnabled="True"/>
+                            <StackPanel Visibility="{Binding AsksReceivedAmountVisibility}" Margin="0,16,0,0">
+                                <TextBlock Text="Valor recebido" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                <TextBox Text="{Binding PaymentReceivedAmountText, UpdateSourceTrigger=LostFocus}" Style="{StaticResource FieldTextBox}"
+                                         behaviors:NumericKeypad.IsEnabled="True"/>
+                                <TextBlock Style="{StaticResource MutedText}" Margin="0,8,0,0">
+                                    <Run Text="Troco: "/><Run Text="{Binding PaymentChangeLabel, Mode=OneWay}"/>
+                                </TextBlock>
+                            </StackPanel>
                             <TextBlock Text="{Binding PaymentEntryMessage}" Foreground="{StaticResource BrushWarning}" FontWeight="SemiBold"
                                        Margin="0,8,0,0" TextWrapping="Wrap" Visibility="{Binding PaymentEntryMessageVisibility}"/>
                             <TextBlock Style="{StaticResource MutedText}" Margin="0,8,0,0">
@@ -1503,7 +1538,8 @@
                     <StackPanel>
                         <TextBlock Text="Abrir caixa" Style="{StaticResource TitleText}" FontSize="28"/>
                         <TextBlock Text="Informe o fundo de troco inicial" Style="{StaticResource MutedText}" Margin="0,8,0,20"/>
-                        <TextBox Text="{Binding OpeningAmount, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Style="{StaticResource FieldTextBox}"/>
+                        <TextBox Text="{Binding OpeningAmount, UpdateSourceTrigger=LostFocus, StringFormat=N2}" Style="{StaticResource FieldTextBox}"
+                                 behaviors:NumericKeypad.IsEnabled="True"/>
                         <Button Content="ABRIR CAIXA" Style="{StaticResource PrimaryTouchButton}" Height="64" Margin="0,20,0,0" Command="{Binding ConfirmOpenCashCommand}"/>
                     </StackPanel>
                 </Border>
@@ -1516,7 +1552,8 @@
                         <TextBlock Text="Fechar caixa" Style="{StaticResource TitleText}" FontSize="28"/>
                         <TextBlock Text="{Binding CashSummaryText}" Style="{StaticResource MutedText}" Margin="0,8,0,8" TextWrapping="Wrap"/>
                         <TextBlock Text="Informe o valor contado em dinheiro" Style="{StaticResource MutedText}" Margin="0,8,0,20"/>
-                        <TextBox Text="{Binding CountedAmount, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Style="{StaticResource FieldTextBox}"/>
+                        <TextBox Text="{Binding CountedAmount, UpdateSourceTrigger=LostFocus, StringFormat=N2}" Style="{StaticResource FieldTextBox}"
+                                 behaviors:NumericKeypad.IsEnabled="True"/>
                         <Grid Margin="0,20,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -1548,7 +1585,8 @@
 
                         <StackPanel Grid.Row="1">
                             <TextBlock Text="Valor" Style="{StaticResource MutedText}" Margin="0,0,0,8"/>
-                            <TextBox Text="{Binding CashMovementAmount, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Style="{StaticResource FieldTextBox}"/>
+                            <TextBox Text="{Binding CashMovementAmount, UpdateSourceTrigger=LostFocus, StringFormat=N2}" Style="{StaticResource FieldTextBox}"
+                                     behaviors:NumericKeypad.IsEnabled="True"/>
                             <TextBlock Text="Motivo" Style="{StaticResource MutedText}" Margin="0,14,0,8"/>
                             <TextBox Text="{Binding CashMovementReason, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
                                      Height="72" TextWrapping="Wrap" AcceptsReturn="True" VerticalContentAlignment="Top"/>

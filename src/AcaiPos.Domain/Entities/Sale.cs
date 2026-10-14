@@ -133,25 +133,42 @@ public class Sale : AuditableEntity
         RecalculateTotals();
     }
 
-    public Payment AddPayment(PaymentMethod method, decimal amount, decimal? amountReceived = null)
+    public Payment AddPayment(
+        int formaPagamentoId,
+        string descricao,
+        bool calculaTroco,
+        decimal amount,
+        decimal? amountReceived = null)
     {
         EnsureOpen();
+        if (formaPagamentoId <= 0)
+            throw new DomainException("Forma de pagamento inválida.");
+        if (string.IsNullOrWhiteSpace(descricao))
+            throw new DomainException("Descrição da forma de pagamento é obrigatória.");
         if (amount <= 0)
             throw new DomainException("Valor do pagamento deve ser maior que zero.");
         if (_items.Count == 0)
             throw new DomainException("Carrinho vazio.");
 
         decimal change = 0;
-        if (method == PaymentMethod.Cash)
+        if (calculaTroco)
         {
-            var received = amountReceived ?? amount;
+            if (amountReceived is null)
+                throw new DomainException("Informe o valor recebido.");
+
+            var received = amountReceived.Value;
             if (received < amount)
                 throw new DomainException("Valor recebido insuficiente.");
+
             change = decimal.Round(received - amount, 2);
             amountReceived = decimal.Round(received, 2);
         }
+        else
+        {
+            amountReceived = null;
+        }
 
-        var payment = Payment.Create(Id, method, amount, amountReceived, change);
+        var payment = Payment.Create(Id, formaPagamentoId, descricao, amount, amountReceived, change);
         _payments.Add(payment);
         MarkUpdated();
         return payment;
@@ -166,7 +183,7 @@ public class Sale : AuditableEntity
         var paid = PaidAmount;
         if (paid < Total)
             throw new DomainException($"Pagamento incompleto. Faltam {Total - paid:C}.");
-        if (paid > Total + 0.009m && _payments.All(p => p.Method != PaymentMethod.Cash))
+        if (paid > Total + 0.009m)
             throw new DomainException("Pagamentos excedem o total da venda.");
 
         foreach (var payment in _payments)

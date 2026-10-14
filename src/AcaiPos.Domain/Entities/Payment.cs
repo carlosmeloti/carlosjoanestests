@@ -6,7 +6,8 @@ namespace AcaiPos.Domain.Entities;
 public class Payment : Entity
 {
     public Guid SaleId { get; private set; }
-    public PaymentMethod Method { get; private set; }
+    public int FormaPagamentoId { get; private set; }
+    public string Descricao { get; private set; } = string.Empty;
     public decimal Amount { get; private set; }
     public decimal? AmountReceived { get; private set; }
     public decimal ChangeAmount { get; private set; }
@@ -20,7 +21,8 @@ public class Payment : Entity
 
     public static Payment Create(
         Guid saleId,
-        PaymentMethod method,
+        int formaPagamentoId,
+        string descricao,
         decimal amount,
         decimal? amountReceived,
         decimal changeAmount,
@@ -29,7 +31,8 @@ public class Payment : Entity
         return new Payment
         {
             SaleId = saleId,
-            Method = method,
+            FormaPagamentoId = formaPagamentoId,
+            Descricao = descricao.Trim(),
             Amount = decimal.Round(amount, 2),
             AmountReceived = amountReceived.HasValue ? decimal.Round(amountReceived.Value, 2) : null,
             ChangeAmount = decimal.Round(changeAmount, 2),

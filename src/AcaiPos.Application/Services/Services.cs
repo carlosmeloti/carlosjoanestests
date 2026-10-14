@@ -649,7 +649,7 @@ public sealed class CashRegisterService
             .Where(p => saleIds.Contains(p.SaleId) && p.Status == PaymentStatus.Confirmed)
             .ToList();
 
-        var cashSales = payments.Where(p => p.Method == PaymentMethod.Cash).Sum(p => p.Amount);
+        var cashSales = SumCashDrawerSales(payments);
         var movements = _db.CashMovements.Where(m => m.CashRegisterId == cash.Id && m.DeletedAt == null).ToList();
         var supplies = movements.Where(m => m.Type == CashMovementType.Supply).Sum(m => m.Amount);
         var withdrawals = movements.Where(m => m.Type == CashMovementType.Withdrawal).Sum(m => m.Amount);
@@ -761,9 +761,7 @@ public sealed class CashRegisterService
             .Where(p => saleIds.Contains(p.SaleId) && p.Status == PaymentStatus.Confirmed)
             .ToList();
 
-        var cashSales = payments.Where(p => p.Method == PaymentMethod.Cash).Sum(p => p.Amount);
-        var cardSales = payments.Where(p => p.Method is PaymentMethod.DebitCard or PaymentMethod.CreditCard).Sum(p => p.Amount);
-        var pixSales = payments.Where(p => p.Method == PaymentMethod.Pix).Sum(p => p.Amount);
+        var cashSales = SumCashDrawerSales(payments);
 
         var movements = _db.CashMovements.Where(m => m.CashRegisterId == cash.Id && m.DeletedAt == null).ToList();
         var supplies = movements.Where(m => m.Type == CashMovementType.Supply).Sum(m => m.Amount);
@@ -777,8 +775,6 @@ public sealed class CashRegisterService
             operatorName,
             terminalCode,
             cashSales,
-            cardSales,
-            pixSales,
             supplies,
             withdrawals,
             expected));
@@ -798,11 +794,13 @@ public sealed class CashRegisterService
             .Where(p => saleIds.Contains(p.SaleId) && p.Status == PaymentStatus.Confirmed)
             .ToList();
 
-        var cashSales = payments.Where(p => p.Method == PaymentMethod.Cash).Sum(p => p.Amount);
-        var debitSales = payments.Where(p => p.Method == PaymentMethod.DebitCard).Sum(p => p.Amount);
-        var creditSales = payments.Where(p => p.Method == PaymentMethod.CreditCard).Sum(p => p.Amount);
-        var pixSales = payments.Where(p => p.Method == PaymentMethod.Pix).Sum(p => p.Amount);
+        var cashSales = SumCashDrawerSales(payments);
         var totalSold = payments.Sum(p => p.Amount);
+        var paymentTotals = payments
+            .GroupBy(p => string.IsNullOrWhiteSpace(p.Descricao) ? "—" : p.Descricao)
+            .Select(g => new PaymentTotalDto(g.Key, g.Sum(x => x.Amount)))
+            .OrderBy(x => x.Label)
+            .ToList();
 
         var movements = _db.CashMovements
             .Where(m => m.CashRegisterId == cash.Id && m.DeletedAt == null)
@@ -821,15 +819,12 @@ public sealed class CashRegisterService
             operatorName,
             terminalCode,
             cash.OpeningAmount,
-            cashSales,
-            debitSales,
-            creditSales,
-            pixSales,
             totalSold,
             supplies,
             withdrawals,
             cashBalance,
             generalBalance,
+            paymentTotals,
             ToSessionMovements(movements, CashMovementType.Withdrawal, operators),
             ToSessionMovements(movements, CashMovementType.Supply, operators));
     }
@@ -863,6 +858,16 @@ public sealed class CashRegisterService
         => value.Kind == DateTimeKind.Local
             ? value
             : DateTime.SpecifyKind(value, DateTimeKind.Utc).ToLocalTime();
+
+    private decimal SumCashDrawerSales(IEnumerable<Domain.Entities.Payment> payments)
+    {
+        var cashIds = _db.FormasPagamento
+            .Where(f => f.CalculaTroco)
+            .Select(f => f.Id)
+            .ToHashSet();
+
+        return payments.Where(p => cashIds.Contains(p.FormaPagamentoId)).Sum(p => p.Amount);
+    }
 
     private void EnsureSession()
     {
@@ -972,7 +977,12 @@ public sealed class SaleService
             throw new DomainException($"Pagamentos ({paymentSum:C}) devem totalizar a venda ({sale.Total:C}).");
 
         foreach (var payment in payments)
-            sale.AddPayment(payment.Method, payment.Amount, payment.AmountReceived);
+        {
+            var forma = _db.FormasPagamento.FirstOrDefault(f => f.Id == payment.FormaPagamentoId && f.IsEnable)
+                ?? throw new DomainException("Forma de pagamento indisponível.");
+
+            sale.AddPayment(forma.Id, forma.Descricao, forma.CalculaTroco, payment.Amount, payment.AmountReceived);
+        }
 
         sale.Complete();
 
@@ -1121,11 +1131,11 @@ public sealed class SaleService
 
         var sales = query.OrderByDescending(s => s.SoldAt).Take(500).ToList();
 
-        if (filter.PaymentMethod.HasValue)
+        if (!string.IsNullOrWhiteSpace(filter.PaymentDescription))
         {
-            var method = filter.PaymentMethod.Value;
+            var description = filter.PaymentDescription.Trim();
             var matchingSaleIds = _db.Payments
-                .Where(p => p.Method == method && p.Status == PaymentStatus.Confirmed)
+                .Where(p => p.Descricao == description && p.Status == PaymentStatus.Confirmed)
                 .Select(p => p.SaleId)
                 .Distinct()
                 .ToHashSet();
@@ -1175,6 +1185,49 @@ public sealed class SaleService
         return Task.FromResult<IReadOnlyList<TerminalOptionDto>>(items);
     }
 
+    public Task<IReadOnlyList<FormaPagamentoDto>> ListPaymentMethodsAsync(
+        bool enabledOnly,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _db.FormasPagamento.AsQueryable();
+        if (enabledOnly)
+            query = query.Where(f => f.IsEnable);
+
+        var items = query
+            .OrderBy(f => f.Ordem)
+            .ThenBy(f => f.Descricao)
+            .Select(f => new FormaPagamentoDto(
+                f.Id,
+                f.Descricao,
+                f.CalculaTroco,
+                f.IsParcela,
+                f.CorRgbBotao,
+                f.Ordem,
+                f.IsEnable))
+            .ToList();
+
+        return Task.FromResult<IReadOnlyList<FormaPagamentoDto>>(items);
+    }
+
+    public Task<IReadOnlyList<string>> ListPaymentDescriptionsAsync(CancellationToken cancellationToken = default)
+    {
+        var fromCatalog = _db.FormasPagamento
+            .OrderBy(f => f.Ordem)
+            .ThenBy(f => f.Descricao)
+            .Select(f => f.Descricao)
+            .ToList();
+
+        var known = fromCatalog.ToHashSet(StringComparer.CurrentCultureIgnoreCase);
+        var extras = _db.Payments
+            .Select(p => p.Descricao)
+            .Distinct()
+            .ToList()
+            .Where(d => !string.IsNullOrWhiteSpace(d) && !known.Contains(d))
+            .OrderBy(d => d);
+
+        return Task.FromResult<IReadOnlyList<string>>(fromCatalog.Concat(extras).ToList());
+    }
+
     private SaleHistoryItemDto MapHistoryItem(Domain.Entities.Sale sale)
     {
         var operatorName = _db.Users.FirstOrDefault(u => u.Id == sale.OperatorId)?.Name ?? "—";
@@ -1192,8 +1245,8 @@ public sealed class SaleService
         var paymentSummary = payments.Count == 0
             ? "—"
             : string.Join(" + ", payments
-                .GroupBy(p => p.Method)
-                .Select(g => $"{MethodShort(g.Key)} {g.Sum(x => x.Amount):C}"));
+                .GroupBy(p => p.Descricao)
+                .Select(g => $"{g.Key} {g.Sum(x => x.Amount):C}"));
 
         return new SaleHistoryItemDto(
             sale.Id,
@@ -1227,15 +1280,6 @@ public sealed class SaleService
         _ => status.ToString()
     };
 
-    private static string MethodShort(PaymentMethod method) => method switch
-    {
-        PaymentMethod.Cash => "Dinheiro",
-        PaymentMethod.DebitCard => "Débito",
-        PaymentMethod.CreditCard => "Crédito",
-        PaymentMethod.Pix => "PIX",
-        _ => method.ToString()
-    };
-
     private SaleSummaryDto MapSale(Domain.Entities.Sale sale)
     {
         var operatorName = _db.Users.FirstOrDefault(u => u.Id == sale.OperatorId)?.Name ?? "—";
@@ -1256,7 +1300,7 @@ public sealed class SaleService
             sale.Status,
             operatorName,
             items.Select(i => new CartItemDto(i.ProductId, i.ProductName, i.ProductSku, i.Quantity, i.UnitPrice, i.Subtotal)).ToList(),
-            payments.Select(p => new PaymentInfoDto(p.Method, p.Amount, p.ChangeAmount)).ToList(),
+            payments.Select(p => new PaymentInfoDto(p.Descricao, p.Amount, p.ChangeAmount)).ToList(),
             sale.ChangeAmount);
     }
 
@@ -1284,8 +1328,8 @@ public sealed class SaleService
             .ToList();
 
         var byPayment = payments
-            .GroupBy(p => p.Method)
-            .Select(g => new DayReportPaymentDto(MethodShort(g.Key), g.Sum(x => x.Amount), g.Count()))
+            .GroupBy(p => string.IsNullOrWhiteSpace(p.Descricao) ? "—" : p.Descricao)
+            .Select(g => new DayReportPaymentDto(g.Key, g.Sum(x => x.Amount), g.Count()))
             .OrderByDescending(x => x.Amount)
             .ToList();
 

@@ -125,20 +125,10 @@ public sealed class TicketService
             payments
                 .Where(p => p.Status != PaymentStatus.Cancelled)
                 .Select(p => new TicketPaymentDto(
-                    p.Method,
-                    MethodLabel(p.Method),
+                    p.Descricao,
                     p.Amount,
                     p.AmountReceived,
                     p.ChangeAmount)).ToList(),
             isReprint);
     }
-
-    private static string MethodLabel(PaymentMethod method) => method switch
-    {
-        PaymentMethod.Cash => "Dinheiro",
-        PaymentMethod.DebitCard => "Cartão débito",
-        PaymentMethod.CreditCard => "Cartão crédito",
-        PaymentMethod.Pix => "PIX",
-        _ => method.ToString()
-    };
 }

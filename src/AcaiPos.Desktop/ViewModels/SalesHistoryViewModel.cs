@@ -21,7 +21,7 @@ public sealed class StatusFilterOption
 public sealed class PaymentFilterOption
 {
     public string Label { get; init; } = string.Empty;
-    public PaymentMethod? Value { get; init; }
+    public string? Description { get; init; }
 }
 
 /// <summary>
@@ -79,14 +79,7 @@ public sealed class SalesHistoryViewModel : ObservableObject
         ];
         _selectedStatus = StatusOptions[0];
 
-        PaymentOptions =
-        [
-            new PaymentFilterOption { Label = "Todas", Value = null },
-            new PaymentFilterOption { Label = "Dinheiro", Value = PaymentMethod.Cash },
-            new PaymentFilterOption { Label = "PIX", Value = PaymentMethod.Pix },
-            new PaymentFilterOption { Label = "Débito", Value = PaymentMethod.DebitCard },
-            new PaymentFilterOption { Label = "Crédito", Value = PaymentMethod.CreditCard }
-        ];
+        PaymentOptions.Add(new PaymentFilterOption { Label = "Todas" });
         _selectedPayment = PaymentOptions[0];
 
         SearchCommand = new RelayCommand(async _ => await SearchAsync());
@@ -109,7 +102,7 @@ public sealed class SalesHistoryViewModel : ObservableObject
     public ObservableCollection<OperatorOptionDto> Operators { get; } = [];
     public ObservableCollection<TerminalOptionDto> Terminals { get; } = [];
     public IReadOnlyList<StatusFilterOption> StatusOptions { get; }
-    public IReadOnlyList<PaymentFilterOption> PaymentOptions { get; }
+    public ObservableCollection<PaymentFilterOption> PaymentOptions { get; } = [];
 
     public RelayCommand SearchCommand { get; }
     public RelayCommand TodayCommand { get; }
@@ -287,6 +280,16 @@ public sealed class SalesHistoryViewModel : ObservableObject
 
         OperatorId = Guid.Empty;
         TerminalId = Guid.Empty;
+
+        var currentDescription = SelectedPayment?.Description;
+        PaymentOptions.Clear();
+        PaymentOptions.Add(new PaymentFilterOption { Label = "Todas" });
+        foreach (var description in await _saleService.ListPaymentDescriptionsAsync())
+            PaymentOptions.Add(new PaymentFilterOption { Label = description, Description = description });
+
+        SelectedPayment = PaymentOptions.FirstOrDefault(option => option.Description == currentDescription)
+            ?? PaymentOptions[0];
+
         await LoadTodayAsync();
     }
 
@@ -329,7 +332,7 @@ public sealed class SalesHistoryViewModel : ObservableObject
                 OperatorId == Guid.Empty ? null : OperatorId,
                 TerminalId == Guid.Empty ? null : TerminalId,
                 SelectedStatus?.Value,
-                SelectedPayment?.Value,
+                SelectedPayment?.Description,
                 SearchText);
 
             var items = await _saleService.SearchHistoryAsync(filter);

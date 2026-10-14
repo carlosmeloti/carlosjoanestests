@@ -22,6 +22,15 @@ public sealed class CashMovementRowViewModel
 }
 
 /// <summary>
+/// Total vendido em uma forma de pagamento no ciclo de caixa.
+/// </summary>
+public sealed class PaymentTotalRowViewModel
+{
+    public string Label { get; init; } = string.Empty;
+    public string AmountLabel { get; init; } = string.Empty;
+}
+
+/// <summary>
 /// Consulta e edição dos ciclos de caixa: período, saldos, sangrias e suprimentos.
 /// </summary>
 public sealed class CashSessionViewModel : ObservableObject
@@ -42,10 +51,6 @@ public sealed class CashSessionViewModel : ObservableObject
     private string _openingAmountLabel = "—";
     private string _cashBalanceLabel = "—";
     private string _generalBalanceLabel = "—";
-    private string _cashSalesLabel = "—";
-    private string _debitSalesLabel = "—";
-    private string _creditSalesLabel = "—";
-    private string _pixSalesLabel = "—";
     private string _totalSoldLabel = "—";
     private string _withdrawalsTotalLabel = "—";
     private string _suppliesTotalLabel = "—";
@@ -84,6 +89,7 @@ public sealed class CashSessionViewModel : ObservableObject
     public ObservableCollection<CashSessionListItemDto> Sessions { get; } = [];
     public ObservableCollection<CashMovementRowViewModel> Withdrawals { get; } = [];
     public ObservableCollection<CashMovementRowViewModel> Supplies { get; } = [];
+    public ObservableCollection<PaymentTotalRowViewModel> PaymentTotals { get; } = [];
 
     public RelayCommand BeginWithdrawalCommand { get; }
     public RelayCommand CancelWithdrawalCommand { get; }
@@ -156,30 +162,6 @@ public sealed class CashSessionViewModel : ObservableObject
     {
         get => _generalBalanceLabel;
         private set => SetProperty(ref _generalBalanceLabel, value);
-    }
-
-    public string CashSalesLabel
-    {
-        get => _cashSalesLabel;
-        private set => SetProperty(ref _cashSalesLabel, value);
-    }
-
-    public string DebitSalesLabel
-    {
-        get => _debitSalesLabel;
-        private set => SetProperty(ref _debitSalesLabel, value);
-    }
-
-    public string CreditSalesLabel
-    {
-        get => _creditSalesLabel;
-        private set => SetProperty(ref _creditSalesLabel, value);
-    }
-
-    public string PixSalesLabel
-    {
-        get => _pixSalesLabel;
-        private set => SetProperty(ref _pixSalesLabel, value);
     }
 
     public string TotalSoldLabel
@@ -495,11 +477,16 @@ public sealed class CashSessionViewModel : ObservableObject
         OpeningAmountLabel = detail.OpeningAmount.ToString("C");
         CashBalanceLabel = detail.CashBalance.ToString("C");
         GeneralBalanceLabel = detail.GeneralBalance.ToString("C");
-        CashSalesLabel = detail.CashSales.ToString("C");
-        DebitSalesLabel = detail.DebitSales.ToString("C");
-        CreditSalesLabel = detail.CreditSales.ToString("C");
-        PixSalesLabel = detail.PixSales.ToString("C");
         TotalSoldLabel = detail.TotalSold.ToString("C");
+        PaymentTotals.Clear();
+        foreach (var total in detail.PaymentTotals)
+        {
+            PaymentTotals.Add(new PaymentTotalRowViewModel
+            {
+                Label = total.Label,
+                AmountLabel = total.Amount.ToString("C")
+            });
+        }
         WithdrawalsTotalLabel = detail.Withdrawals.ToString("C");
         SuppliesTotalLabel = detail.Supplies.ToString("C");
 
@@ -526,11 +513,8 @@ public sealed class CashSessionViewModel : ObservableObject
         OpeningAmountLabel = "—";
         CashBalanceLabel = "—";
         GeneralBalanceLabel = "—";
-        CashSalesLabel = "—";
-        DebitSalesLabel = "—";
-        CreditSalesLabel = "—";
-        PixSalesLabel = "—";
         TotalSoldLabel = "—";
+        PaymentTotals.Clear();
         WithdrawalsTotalLabel = "—";
         SuppliesTotalLabel = "—";
         Withdrawals.Clear();

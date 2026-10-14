@@ -86,7 +86,7 @@ public static class QuantityEditAssist
 
     private static void OnLostFocus(object sender, RoutedEventArgs e)
     {
-        if (sender is not TextBox textBox)
+        if (sender is not TextBox textBox || NumericKeypad.IsHolding(textBox))
             return;
 
         Execute(GetCommitCommand(textBox), textBox.DataContext);
