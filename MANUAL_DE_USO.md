@@ -113,7 +113,7 @@ Elementos principais:
 | Operador / loja / terminal | Contexto da sessão |
 | **OFFLINE-LOCAL** | Indica operação local |
 | Relógio | Hora atual |
-| **Abrir caixa** / **Fechar caixa** | Ciclo de caixa |
+| **Abrir caixa** / **Fechar caixa** | Itens da barra lateral. Abrem ou fecham o ciclo; a abertura não é exigida no login |
 | **Suprimento** / **Sangria** | Movimentações (caixa aberto) |
 | **Sair** | Logout |
 
@@ -121,12 +121,12 @@ Elementos principais:
 
 ## 6. Abertura de caixa
 
-Sem caixa aberto **não é possível vender**.
+Sem caixa aberto **não é possível vender**. Consultas (histórico, ciclos, cadastros) seguem disponíveis.
 
-1. Faça login
-2. Se não houver caixa aberto, o sistema sugere a abertura
+1. Faça login. O sistema entra direto, mesmo com o caixa fechado
+2. Na barra lateral, toque em **Abrir caixa** (ao lado de **Fechar caixa**)
 3. Informe o **fundo de troco** (valor inicial em dinheiro)
-4. Confirme **ABRIR CAIXA**
+4. Confirme **ABRIR CAIXA**, ou toque em **Agora não** para voltar sem abrir
 
 Regras:
 

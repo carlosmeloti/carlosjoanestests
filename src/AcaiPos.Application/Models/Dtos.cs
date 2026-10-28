@@ -2,14 +2,15 @@ using AcaiPos.Domain.Enums;
 
 namespace AcaiPos.Application.Models;
 
-public sealed record CategoryDto(Guid Id, string Name, string? Description, int SortOrder);
+public sealed record CategoryDto(Guid Id, string Name, string? Description, int SortOrder, bool IsDefault = false);
 
 public sealed record CategoryManageDto(
     Guid Id,
     string Name,
     string? Description,
     int SortOrder,
-    bool IsActive);
+    bool IsActive,
+    bool IsDefault = false);
 
 public sealed record ProductDto(
     Guid Id,
@@ -33,13 +34,23 @@ public sealed record ProductManageDto(
     decimal? CostPrice,
     decimal StockQuantity,
     string UnitOfMeasure,
-    bool IsActive);
+    bool IsActive,
+    string Ncm,
+    string Cfop,
+    int Origem,
+    string Csosn,
+    string? Cest,
+    string PisCst,
+    string CofinsCst,
+    string IbsCbsCst = "000",
+    string CClassTrib = "000001");
 
 public sealed record SaveCategoryRequest(
     string Name,
     string? Description,
     int SortOrder,
-    bool IsActive);
+    bool IsActive,
+    bool IsDefault);
 
 public sealed record SaveProductRequest(
     string Name,
@@ -50,7 +61,16 @@ public sealed record SaveProductRequest(
     decimal? CostPrice,
     decimal StockQuantity,
     string UnitOfMeasure,
-    bool IsActive);
+    bool IsActive,
+    string Ncm,
+    string Cfop,
+    int Origem,
+    string Csosn,
+    string? Cest,
+    string PisCst,
+    string CofinsCst,
+    string IbsCbsCst = "000",
+    string CClassTrib = "000001");
 
 public sealed record CartItemDto(
     Guid ProductId,
@@ -97,7 +117,19 @@ public sealed record SaleHistoryItemDto(
     decimal ChangeAmount,
     string? CancellationReason = null,
     string? CancelledByName = null,
-    DateTime? CancelledAt = null);
+    DateTime? CancelledAt = null,
+    bool TemNfce = false,
+    string NfceStatusLabel = "—",
+    int? NfceSerie = null,
+    int? NfceNumero = null,
+    string? NfceChave = null,
+    string? NfceProtocolo = null,
+    string? NfceCStat = null,
+    string? NfceMotivo = null,
+    bool PodeEnviarNfce = false,
+    bool PodeExportarXml = false,
+    bool CancelaNaSefaz = false,
+    bool CancelaContingencia = false);
 
 public sealed record CancelSaleRequest(
     Guid SaleId,
@@ -112,7 +144,10 @@ public sealed record SaleHistoryFilter(
     Guid? TerminalId = null,
     SaleStatus? Status = null,
     string? PaymentDescription = null,
-    string? Search = null);
+    string? Search = null,
+    Guid? CashRegisterId = null,
+    StatusDocumentoFiscal? NfceStatus = null,
+    bool SemNfce = false);
 
 public sealed record SaleHistoryTotalsDto(
     int Count,
@@ -170,7 +205,23 @@ public sealed record TicketDto(
     decimal ChangeAmount,
     IReadOnlyList<TicketItemDto> Items,
     IReadOnlyList<TicketPaymentDto> Payments,
-    bool IsReprint);
+    bool IsReprint,
+    bool TemCupomFiscal = false,
+    string? ChaveAcesso = null,
+    string? Protocolo = null,
+    string? QrCode = null,
+    string? UrlConsulta = null,
+    bool Contingencia = false,
+    string? CpfConsumidor = null,
+    string? DocumentoEmitente = null,
+    string? EnderecoEmitente = null,
+    string? InscricaoEstadual = null,
+    int? NumeroNfce = null,
+    int? SerieNfce = null,
+    bool Homologacao = false,
+    string? CnpjEmitente = null,
+    decimal? TributoIbs = null,
+    decimal? TributoCbs = null);
 
 public sealed record CashMovementDto(
     Guid Id,

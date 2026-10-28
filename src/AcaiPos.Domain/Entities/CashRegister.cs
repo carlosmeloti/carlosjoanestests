@@ -6,6 +6,7 @@ namespace AcaiPos.Domain.Entities;
 public class CashRegister : AuditableEntity
 {
     public Guid TerminalId { get; private set; }
+    public Guid StoreId { get; private set; }
     public Guid OperatorId { get; private set; }
     public DateTime OpenedAt { get; private set; }
     public DateTime? ClosedAt { get; private set; }
@@ -27,10 +28,12 @@ public class CashRegister : AuditableEntity
     {
     }
 
-    public static CashRegister Open(Guid terminalId, Guid operatorId, decimal openingAmount)
+    public static CashRegister Open(Guid terminalId, Guid storeId, Guid operatorId, decimal openingAmount)
     {
         if (terminalId == Guid.Empty)
             throw new DomainException("Terminal é obrigatório.");
+        if (storeId == Guid.Empty)
+            throw new DomainException("Loja é obrigatória.");
         if (operatorId == Guid.Empty)
             throw new DomainException("Operador é obrigatório.");
         if (openingAmount < 0)
@@ -39,11 +42,120 @@ public class CashRegister : AuditableEntity
         return new CashRegister
         {
             TerminalId = terminalId,
+            StoreId = storeId,
             OperatorId = operatorId,
             OpenedAt = DateTime.UtcNow,
             OpeningAmount = decimal.Round(openingAmount, 2),
             Status = CashRegisterStatus.Open
         };
+    }
+
+    public static CashRegister Restaurar(
+        Guid id,
+        Guid terminalId,
+        Guid storeId,
+        Guid operatorId,
+        DateTime openedAt,
+        DateTime? closedAt,
+        decimal openingAmount,
+        decimal? countedAmount,
+        decimal? expectedAmount,
+        decimal? differenceAmount,
+        CashRegisterStatus status,
+        Guid? closedByOperatorId,
+        string? closingNotes,
+        DateTime createdAt,
+        DateTime updatedAt)
+    {
+        var cash = new CashRegister();
+        cash.DefinirId(id);
+        cash.AtribuirEspelho(
+            terminalId,
+            storeId,
+            operatorId,
+            openedAt,
+            closedAt,
+            openingAmount,
+            countedAmount,
+            expectedAmount,
+            differenceAmount,
+            status,
+            closedByOperatorId,
+            closingNotes,
+            createdAt,
+            updatedAt);
+        return cash;
+    }
+
+    public void AplicarEspelho(
+        Guid terminalId,
+        Guid storeId,
+        Guid operatorId,
+        DateTime openedAt,
+        DateTime? closedAt,
+        decimal openingAmount,
+        decimal? countedAmount,
+        decimal? expectedAmount,
+        decimal? differenceAmount,
+        CashRegisterStatus status,
+        Guid? closedByOperatorId,
+        string? closingNotes,
+        DateTime createdAt,
+        DateTime updatedAt)
+        => AtribuirEspelho(
+            terminalId,
+            storeId,
+            operatorId,
+            openedAt,
+            closedAt,
+            openingAmount,
+            countedAmount,
+            expectedAmount,
+            differenceAmount,
+            status,
+            closedByOperatorId,
+            closingNotes,
+            createdAt,
+            updatedAt);
+
+    private void AtribuirEspelho(
+        Guid terminalId,
+        Guid storeId,
+        Guid operatorId,
+        DateTime openedAt,
+        DateTime? closedAt,
+        decimal openingAmount,
+        decimal? countedAmount,
+        decimal? expectedAmount,
+        decimal? differenceAmount,
+        CashRegisterStatus status,
+        Guid? closedByOperatorId,
+        string? closingNotes,
+        DateTime createdAt,
+        DateTime updatedAt)
+    {
+        if (terminalId == Guid.Empty)
+            throw new DomainException("Terminal é obrigatório.");
+        if (storeId == Guid.Empty)
+            throw new DomainException("Loja é obrigatória.");
+        if (operatorId == Guid.Empty)
+            throw new DomainException("Operador é obrigatório.");
+        if (openingAmount < 0)
+            throw new DomainException("Valor de abertura não pode ser negativo.");
+
+        TerminalId = terminalId;
+        StoreId = storeId;
+        OperatorId = operatorId;
+        OpenedAt = openedAt;
+        ClosedAt = closedAt;
+        OpeningAmount = decimal.Round(openingAmount, 2);
+        CountedAmount = countedAmount.HasValue ? decimal.Round(countedAmount.Value, 2) : null;
+        ExpectedAmount = expectedAmount.HasValue ? decimal.Round(expectedAmount.Value, 2) : null;
+        DifferenceAmount = differenceAmount.HasValue ? decimal.Round(differenceAmount.Value, 2) : null;
+        Status = status;
+        ClosedByOperatorId = closedByOperatorId;
+        ClosingNotes = string.IsNullOrWhiteSpace(closingNotes) ? null : closingNotes.Trim();
+        RestaurarTrilha(createdAt, updatedAt, null, SyncStatus.Synced);
     }
 
     public CashMovement AddMovement(Guid operatorId, CashMovementType type, decimal amount, string reason)
@@ -66,7 +178,7 @@ public class CashRegister : AuditableEntity
         if (movement.CashRegisterId != Id)
             throw new DomainException("Movimentação não pertence a este caixa.");
 
-        _movements.Remove(movement);
+        movement.SoftDelete();
         MarkUpdated();
     }
 

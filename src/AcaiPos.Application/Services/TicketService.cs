@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Xml.Linq;
 using AcaiPos.Application.Abstractions;
 using AcaiPos.Application.Models;
 using AcaiPos.Domain.Common;
@@ -100,6 +102,14 @@ public sealed class TicketService
         if (payments.Count == 0 && sale.Payments.Count > 0)
             payments = sale.Payments.ToList();
 
+        var documento = _db.DocumentosFiscais
+            .Where(item => item.SaleId == sale.Id && item.DeletedAt == null)
+            .OrderByDescending(item => item.EmitidoEm)
+            .FirstOrDefault();
+        var (ibs, cbs) = LerTributos(documento?.Xml);
+        var config = _db.ConfiguracoesFiscais.FirstOrDefault(item =>
+            item.DeletedAt == null && (store == null || item.StoreId == store.Id));
+
         return new TicketDto(
             sale.Id,
             sale.TicketNumber,
@@ -114,7 +124,7 @@ public sealed class TicketService
             sale.DiscountAmount,
             sale.SurchargeAmount,
             sale.Total,
-            sale.ChangeAmount,
+            payments.Sum(p => p.ChangeAmount),
             items.Select(i => new TicketItemDto(
                 i.ProductName,
                 i.ProductSku,
@@ -123,12 +133,57 @@ public sealed class TicketService
                 i.DiscountAmount,
                 i.Subtotal)).ToList(),
             payments
-                .Where(p => p.Status != PaymentStatus.Cancelled)
                 .Select(p => new TicketPaymentDto(
                     p.Descricao,
                     p.Amount,
                     p.AmountReceived,
                     p.ChangeAmount)).ToList(),
-            isReprint);
+            isReprint,
+            documento is not null,
+            documento?.Chave,
+            documento?.Protocolo,
+            documento?.QrCode,
+            documento?.UrlChave,
+            documento?.Status == StatusDocumentoFiscal.Contingencia,
+            sale.CpfConsumidor,
+            config?.NomeFantasia,
+            config is null ? null : $"{config.Logradouro}, {config.Numero} - {config.Bairro} - {config.Municipio}/{config.Uf}",
+            config?.InscricaoEstadual,
+            documento?.Numero,
+            documento?.Serie,
+            config?.Homologacao == true,
+            config?.Cnpj,
+            ibs,
+            cbs);
+    }
+
+    private static (decimal? Ibs, decimal? Cbs) LerTributos(string? xml)
+    {
+        if (string.IsNullOrWhiteSpace(xml))
+            return (null, null);
+
+        try
+        {
+            var documento = XDocument.Parse(xml);
+            var total = documento.Descendants().FirstOrDefault(elemento => elemento.Name.LocalName == "IBSCBSTot");
+            if (total is null)
+                return (null, null);
+
+            return (Ler(total, "gIBS", "vIBS"), Ler(total, "gCBS", "vCBS"));
+        }
+        catch (System.Xml.XmlException)
+        {
+            return (null, null);
+        }
+    }
+
+    private static decimal? Ler(XElement total, string grupo, string tag)
+    {
+        var valor = total.Elements().FirstOrDefault(elemento => elemento.Name.LocalName == grupo)
+            ?.Elements().FirstOrDefault(elemento => elemento.Name.LocalName == tag)
+            ?.Value;
+        return decimal.TryParse(valor, NumberStyles.Number, CultureInfo.InvariantCulture, out var numero)
+            ? numero
+            : null;
     }
 }

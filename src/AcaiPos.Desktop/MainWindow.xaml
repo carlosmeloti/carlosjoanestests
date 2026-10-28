@@ -29,7 +29,7 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel VerticalAlignment="Center" Margin="0,0,40,0">
-                    <TextBlock Text="AÇAI PDV" FontFamily="{StaticResource FontDisplay}" FontSize="64" FontWeight="Bold"
+                    <TextBlock Text="ONE PDV" FontFamily="{StaticResource FontDisplay}" FontSize="64" FontWeight="Bold"
                                Foreground="{StaticResource BrushTextPrimary}"/>
                     <TextBlock Text="PDV touch-first para operação rápida de caixa"
                                Style="{StaticResource MutedText}" FontSize="18" Margin="0,12,0,0" TextWrapping="Wrap"/>
@@ -48,7 +48,8 @@
                         <TextBlock Text="Identifique o operador" Style="{StaticResource MutedText}" Margin="0,6,0,20"/>
 
                         <TextBlock Text="Usuário" Style="{StaticResource MutedText}" Margin="0,0,0,8"/>
-                        <TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"/>
+                        <TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                 behaviors:AlphaKeypad.IsEnabled="True"/>
 
                         <TextBlock Text="PIN" Style="{StaticResource MutedText}" Margin="0,18,0,8"/>
                         <TextBox Text="{Binding Pin, UpdateSourceTrigger=PropertyChanged}"
@@ -97,7 +98,7 @@
                 <Border Grid.Column="0" Width="{Binding NavRailWidth}" Background="{StaticResource BrushBgPanel}" BorderBrush="{StaticResource BrushStroke}" BorderThickness="0,0,1,0" Padding="10,16,10,12">
                     <DockPanel>
                         <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
-                            <TextBlock Text="FAST GOURMET" FontFamily="{StaticResource FontDisplay}" FontSize="22" FontWeight="Bold"
+                            <TextBlock Text="ONE PDV" FontFamily="{StaticResource FontDisplay}" FontSize="22" FontWeight="Bold"
                                        Foreground="{StaticResource BrushTextPrimary}" TextWrapping="Wrap" Margin="4,0,44,0" VerticalAlignment="Center"
                                        Visibility="{Binding NavLabelVisibility}"/>
                             <Button Command="{Binding ToggleNavCommand}" ToolTip="{Binding NavToggleToolTip}"
@@ -143,6 +144,22 @@
                                     </Style>
                                 </Button.Style>
                             </Button>
+                            <Button Command="{Binding GoToNfceCommand}" ToolTip="NFC-e">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE8A1;" Style="{StaticResource NavIcon}"/>
+                                    <TextBlock Text="NFC-e" Margin="12,0,0,0" VerticalAlignment="Center" Visibility="{Binding NavLabelVisibility}"/>
+                                </StackPanel>
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource NavRailItemButton}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsNfceScreen}" Value="True">
+                                                <Setter Property="Background" Value="{StaticResource BrushAccentSoft}"/>
+                                                <Setter Property="Foreground" Value="{StaticResource BrushAccent}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
                             <Button Command="{Binding GoToCashSessionCommand}" ToolTip="Caixa">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="&#xE825;" Style="{StaticResource NavIcon}"/>
@@ -159,7 +176,7 @@
                                     </Style>
                                 </Button.Style>
                             </Button>
-                            <Button Command="{Binding OpenReprintCommand}" ToolTip="Tickets" Style="{StaticResource NavRailItemButton}">
+                            <Button Command="{Binding OpenReprintCommand}" ToolTip="Tickets" Style="{StaticResource NavRailItemButton}" Visibility="Collapsed">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="&#xE749;" Style="{StaticResource NavIcon}"/>
                                     <TextBlock Text="Tickets" Margin="12,0,0,0" VerticalAlignment="Center" Visibility="{Binding NavLabelVisibility}"/>
@@ -175,6 +192,12 @@
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="&#xE894;" Style="{StaticResource NavIcon}"/>
                                     <TextBlock Text="Sangria" Margin="12,0,0,0" VerticalAlignment="Center" Visibility="{Binding NavLabelVisibility}"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Command="{Binding OpenCashCommand}" ToolTip="Abrir caixa" Style="{StaticResource NavRailItemButton}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE8A7;" Style="{StaticResource NavIcon}"/>
+                                    <TextBlock Text="Abrir caixa" Margin="12,0,0,0" VerticalAlignment="Center" Visibility="{Binding NavLabelVisibility}"/>
                                 </StackPanel>
                             </Button>
                             <Button Command="{Binding CloseCashCommand}" ToolTip="Fechar caixa" Style="{StaticResource NavRailItemButton}">
@@ -203,6 +226,22 @@
                                         </Style>
                                     </Button.Style>
                                 </Button>
+                                <Button Command="{Binding GoToFiscalCommand}" Visibility="{Binding CatalogButtonVisibility}" ToolTip="Fiscal">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE8A5;" Style="{StaticResource NavIcon}"/>
+                                        <TextBlock Text="Fiscal" Margin="12,0,0,0" VerticalAlignment="Center" Visibility="{Binding NavLabelVisibility}"/>
+                                    </StackPanel>
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource NavRailItemButton}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsFiscalScreen}" Value="True">
+                                                    <Setter Property="Background" Value="{StaticResource BrushAccentSoft}"/>
+                                                    <Setter Property="Foreground" Value="{StaticResource BrushAccent}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
                                 <Button Command="{Binding GoToUsersCommand}" Visibility="{Binding UsersButtonVisibility}" ToolTip="Usuários">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="&#xE716;" Style="{StaticResource NavIcon}"/>
@@ -212,6 +251,22 @@
                                         <Style TargetType="Button" BasedOn="{StaticResource NavRailItemButton}">
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsUsersScreen}" Value="True">
+                                                    <Setter Property="Background" Value="{StaticResource BrushAccentSoft}"/>
+                                                    <Setter Property="Foreground" Value="{StaticResource BrushAccent}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Command="{Binding GoToSettingsCommand}" Visibility="{Binding CatalogButtonVisibility}" ToolTip="Configurações">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE713;" Style="{StaticResource NavIcon}"/>
+                                        <TextBlock Text="Configurações" Margin="12,0,0,0" VerticalAlignment="Center" Visibility="{Binding NavLabelVisibility}"/>
+                                    </StackPanel>
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource NavRailItemButton}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsSettingsScreen}" Value="True">
                                                     <Setter Property="Background" Value="{StaticResource BrushAccentSoft}"/>
                                                     <Setter Property="Foreground" Value="{StaticResource BrushAccent}"/>
                                                 </DataTrigger>
@@ -302,14 +357,108 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox x:Name="SaleSearchBox"
+                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource FieldTextBox}"
+                                 behaviors:AlphaKeypad.IsEnabled="True"
+                                 behaviors:AlphaKeypad.IsSuppressed="{Binding SuggestionsOpen}"
                                  Tag="Buscar produto, SKU ou código de barras">
                             <TextBox.InputBindings>
                                 <KeyBinding Key="Return" Command="{Binding SearchOrBarcodeCommand}"/>
                                 <KeyBinding Key="Enter" Command="{Binding SearchOrBarcodeCommand}"/>
+                                <KeyBinding Key="Down" Command="{Binding MoveSuggestionCommand}" CommandParameter="1"/>
+                                <KeyBinding Key="Up" Command="{Binding MoveSuggestionCommand}" CommandParameter="-1"/>
+                                <KeyBinding Key="Escape" Command="{Binding DismissSuggestionsCommand}"/>
                             </TextBox.InputBindings>
                         </TextBox>
+                        <Popup PlacementTarget="{Binding ElementName=SaleSearchBox}"
+                               Placement="Bottom"
+                               VerticalOffset="4"
+                               StaysOpen="True"
+                               AllowsTransparency="True"
+                               Focusable="False"
+                               IsOpen="{Binding SuggestionsOpen, Mode=OneWay}">
+                            <Border Width="{Binding ActualWidth, ElementName=SaleSearchBox}"
+                                    MaxHeight="280"
+                                    Background="{StaticResource BrushBgPanel}"
+                                    BorderBrush="{StaticResource BrushStroke}"
+                                    BorderThickness="1"
+                                    CornerRadius="14"
+                                    Padding="6">
+                                <Grid>
+                                    <ListBox ItemsSource="{Binding Products}"
+                                             Visibility="{Binding SuggestionsListVisibility}"
+                                             Background="Transparent"
+                                             BorderThickness="0"
+                                             Focusable="False"
+                                             IsTabStop="False"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                             ScrollViewer.CanContentScroll="False"
+                                             ScrollViewer.PanningMode="VerticalOnly"
+                                             KeyboardNavigation.DirectionalNavigation="None"
+                                             behaviors:SuggestionPick.AcceptCommand="{Binding AcceptSuggestionCommand}"
+                                             behaviors:SuggestionPick.HighlightedIndex="{Binding SuggestionIndex}">
+                                        <ListBox.ItemContainerStyle>
+                                            <Style TargetType="ListBoxItem">
+                                                <Setter Property="Focusable" Value="False"/>
+                                                <Setter Property="IsTabStop" Value="False"/>
+                                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                                <Setter Property="Padding" Value="12,10"/>
+                                                <Setter Property="Margin" Value="0,0,0,4"/>
+                                                <Setter Property="Background" Value="Transparent"/>
+                                                <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}"/>
+                                                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                                                <Setter Property="MinHeight" Value="56"/>
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="ListBoxItem">
+                                                            <Border x:Name="Row" Background="{TemplateBinding Background}" CornerRadius="12" Padding="{TemplateBinding Padding}">
+                                                                <ContentPresenter/>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter TargetName="Row" Property="Background" Value="{StaticResource BrushBgElevated}"/>
+                                                                </Trigger>
+                                                                <Trigger Property="IsSelected" Value="True">
+                                                                    <Setter TargetName="Row" Property="Background" Value="{StaticResource BrushAccentSoft}"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </ListBox.ItemContainerStyle>
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="16" TextWrapping="Wrap"/>
+                                                        <TextBlock Text="{Binding Sku}" Style="{StaticResource MutedText}" Margin="0,2,0,0"/>
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="1"
+                                                               Text="{Binding SalePrice, StringFormat=C}"
+                                                               FontFamily="{StaticResource FontDisplay}"
+                                                               FontSize="18"
+                                                               Foreground="{StaticResource BrushAccent}"
+                                                               VerticalAlignment="Center"
+                                                               Margin="12,0,0,0"/>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                    <TextBlock Text="Nenhum produto encontrado"
+                                               Style="{StaticResource MutedText}"
+                                               FontSize="16"
+                                               Margin="12,14"
+                                               Visibility="{Binding SuggestionsEmptyVisibility}"/>
+                                </Grid>
+                            </Border>
+                        </Popup>
                         <Button Grid.Column="1" Content="Buscar" Style="{StaticResource TouchButton}" Width="120" Command="{Binding SearchOrBarcodeCommand}"/>
                     </Grid>
 
@@ -322,10 +471,22 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Button Content="{Binding Name}"
-                                        Style="{StaticResource GhostTouchButton}"
                                         Padding="18,12"
+                                        Margin="0,0,8,8"
                                         Command="{Binding DataContext.SelectCategoryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                        CommandParameter="{Binding Id}"/>
+                                        CommandParameter="{Binding Id}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource GhostTouchButton}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                    <Setter Property="Background" Value="{StaticResource BrushAccentSoft}"/>
+                                                    <Setter Property="BorderBrush" Value="{StaticResource BrushAccent}"/>
+                                                    <Setter Property="Foreground" Value="{StaticResource BrushAccent}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
@@ -490,7 +651,8 @@
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBox Text="{Binding ProductSearch, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}" Margin="0,0,8,0"/>
+                                <TextBox Text="{Binding ProductSearch, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}" Margin="0,0,8,0"
+                                         behaviors:AlphaKeypad.IsEnabled="True"/>
                                 <ComboBox Grid.Column="1"
                                           Style="{StaticResource FieldComboBox}"
                                           ItemsSource="{Binding FilterCategoryOptions}"
@@ -509,6 +671,7 @@
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Nome" Binding="{Binding Name}" Width="2*"/>
                                     <DataGridTextColumn Header="SKU" Binding="{Binding Sku}" Width="*"/>
+                                    <DataGridTextColumn Header="NCM" Binding="{Binding Ncm}" Width="90"/>
                                     <DataGridTextColumn Header="Categoria" Binding="{Binding CategoryName}" Width="*"/>
                                     <DataGridTextColumn Header="Preço" Binding="{Binding SalePrice, StringFormat=C}" Width="90"/>
                                     <DataGridTextColumn Header="Estoque" Binding="{Binding StockQuantity, StringFormat=0.###}" Width="80"/>
@@ -540,7 +703,8 @@
                                         Command="{Binding NewProductCommand}"/>
 
                                 <TextBlock Text="Nome" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
-                                <TextBox Text="{Binding ProductName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"/>
+                                <TextBox Text="{Binding ProductName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                         behaviors:AlphaKeypad.IsEnabled="True"/>
 
                                 <Grid Margin="0,12,0,0">
                                     <Grid.ColumnDefinitions>
@@ -549,11 +713,14 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Margin="0,0,6,0">
                                         <TextBlock Text="SKU" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
-                                        <TextBox Text="{Binding ProductSku, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"/>
+                                        <TextBox Text="{Binding ProductSku, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                                 behaviors:AlphaKeypad.IsEnabled="True"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Margin="6,0,0,0">
                                         <TextBlock Text="Cód. barras" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
-                                        <TextBox Text="{Binding ProductBarcode, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"/>
+                                        <TextBox Text="{Binding ProductBarcode, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                                 behaviors:NumericKeypad.IsEnabled="True"
+                                                 behaviors:NumericKeypad.AllowDecimal="False"/>
                                     </StackPanel>
                                 </Grid>
 
@@ -601,11 +768,93 @@
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Margin="6,0,0,0">
                                         <TextBlock Text="Unidade" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
-                                        <TextBox Text="{Binding ProductUnit, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"/>
+                                        <TextBox Text="{Binding ProductUnit, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                                 behaviors:AlphaKeypad.IsEnabled="True"/>
                                     </StackPanel>
                                 </Grid>
 
-                                <CheckBox Content="Produto ativo" Style="{StaticResource FieldCheckBox}" IsChecked="{Binding ProductIsActive}"/>
+                                <TextBlock Text="Dados fiscais" Style="{StaticResource MutedText}" Margin="0,16,0,6"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,6,0">
+                                        <TextBlock Text="NCM" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                        <TextBox Text="{Binding ProductNcm, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                                 behaviors:NumericKeypad.IsEnabled="True"
+                                                 behaviors:NumericKeypad.AllowDecimal="False"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="6,0,0,0">
+                                        <TextBlock Text="CFOP" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                        <TextBox Text="{Binding ProductCfop, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                                 behaviors:NumericKeypad.IsEnabled="True"
+                                                 behaviors:NumericKeypad.AllowDecimal="False"/>
+                                    </StackPanel>
+                                </Grid>
+                                <Grid Margin="0,12,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,6,0">
+                                        <TextBlock Text="Origem" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                        <TextBox Text="{Binding ProductOrigem, UpdateSourceTrigger=LostFocus}" Style="{StaticResource FieldTextBox}"
+                                                 behaviors:NumericKeypad.IsEnabled="True"
+                                                 behaviors:NumericKeypad.AllowDecimal="False"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="6,0">
+                                        <TextBlock Text="CSOSN" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                        <TextBox Text="{Binding ProductCsosn, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                                 behaviors:NumericKeypad.IsEnabled="True"
+                                                 behaviors:NumericKeypad.AllowDecimal="False"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Margin="6,0,0,0">
+                                        <TextBlock Text="CEST" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                        <TextBox Text="{Binding ProductCest, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                                 behaviors:NumericKeypad.IsEnabled="True"
+                                                 behaviors:NumericKeypad.AllowDecimal="False"/>
+                                    </StackPanel>
+                                </Grid>
+                                <Grid Margin="0,12,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,6,0">
+                                        <TextBlock Text="CST PIS" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                        <TextBox Text="{Binding ProductPisCst, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                                 behaviors:NumericKeypad.IsEnabled="True"
+                                                 behaviors:NumericKeypad.AllowDecimal="False"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="6,0,0,0">
+                                        <TextBlock Text="CST COFINS" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                        <TextBox Text="{Binding ProductCofinsCst, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                                 behaviors:NumericKeypad.IsEnabled="True"
+                                                 behaviors:NumericKeypad.AllowDecimal="False"/>
+                                    </StackPanel>
+                                </Grid>
+                                <Grid Margin="0,12,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,6,0">
+                                        <TextBlock Text="CST IBS/CBS" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                        <TextBox Text="{Binding ProductIbsCbsCst, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                                 behaviors:NumericKeypad.IsEnabled="True"
+                                                 behaviors:NumericKeypad.AllowDecimal="False"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="6,0,0,0">
+                                        <TextBlock Text="cClassTrib" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                        <TextBox Text="{Binding ProductCClassTrib, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                                 behaviors:NumericKeypad.IsEnabled="True"
+                                                 behaviors:NumericKeypad.AllowDecimal="False"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <CheckBox Content="Produto ativo" Style="{StaticResource FieldCheckBox}" IsChecked="{Binding ProductIsActive}" Margin="0,12,0,0"/>
 
                                 <Button Content="SALVAR PRODUTO" Style="{StaticResource PrimaryTouchButton}" Height="56" Margin="0,20,0,0"
                                         Command="{Binding SaveProductCommand}"/>
@@ -628,6 +877,7 @@
                                 <DataGridTextColumn Header="Descrição" Binding="{Binding Description}" Width="2*"/>
                                 <DataGridTextColumn Header="Ordem" Binding="{Binding SortOrder}" Width="80"/>
                                 <DataGridTextColumn Header="Ativo" Binding="{Binding IsActive}" Width="70"/>
+                                <DataGridTextColumn Header="Padrão" Binding="{Binding IsDefault}" Width="80"/>
                                 <DataGridTemplateColumn Header="" Width="210">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
@@ -653,10 +903,12 @@
                                     Command="{Binding NewCategoryCommand}"/>
 
                             <TextBlock Text="Nome" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
-                            <TextBox Text="{Binding CategoryName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"/>
+                            <TextBox Text="{Binding CategoryName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                     behaviors:AlphaKeypad.IsEnabled="True"/>
 
                             <TextBlock Text="Descrição" Style="{StaticResource MutedText}" Margin="0,12,0,6"/>
                             <TextBox Text="{Binding CategoryDescription, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                     behaviors:AlphaKeypad.IsEnabled="True"
                                      Height="90" TextWrapping="Wrap" AcceptsReturn="True" VerticalContentAlignment="Top"/>
 
                             <TextBlock Text="Ordem" Style="{StaticResource MutedText}" Margin="0,12,0,6"/>
@@ -665,12 +917,209 @@
                                      behaviors:NumericKeypad.AllowDecimal="False"/>
 
                             <CheckBox Content="Categoria ativa" Style="{StaticResource FieldCheckBox}" IsChecked="{Binding CategoryIsActive}"/>
+                            <CheckBox Content="Categoria padrão" Style="{StaticResource FieldCheckBox}" IsChecked="{Binding CategoryIsDefault}" Margin="0,8,0,0"/>
 
                             <Button Content="SALVAR CATEGORIA" Style="{StaticResource PrimaryTouchButton}" Height="56" Margin="0,20,0,0"
                                     Command="{Binding SaveCategoryCommand}"/>
                         </StackPanel>
                     </Border>
                 </Grid>
+            </Grid>
+
+            <!-- Fiscal configuration -->
+            <Grid Grid.Row="1" Margin="16" DataContext="{Binding Fiscal}" Visibility="{Binding DataContext.FiscalScreenVisibility, RelativeSource={RelativeSource AncestorType={x:Type Window}}}">
+                <Border Background="{StaticResource BrushBgPanel}" CornerRadius="20" Padding="20">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel MaxWidth="920">
+                            <TextBlock Text="Configuração fiscal" Style="{StaticResource TitleText}" FontSize="28"/>
+                            <TextBlock Text="{Binding Mensagem}" Style="{StaticResource MutedText}" Margin="0,8,0,16" TextWrapping="Wrap"/>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,8,0">
+                                    <TextBlock Text="Razão social" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding RazaoSocial, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                             behaviors:AlphaKeypad.IsEnabled="True"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                    <TextBlock Text="Nome fantasia" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding NomeFantasia, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                             behaviors:AlphaKeypad.IsEnabled="True"/>
+                                </StackPanel>
+                            </Grid>
+                            <Grid Margin="0,12,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="120"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,8,0">
+                                    <TextBlock Text="CNPJ" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding Cnpj, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                             behaviors:NumericKeypad.IsEnabled="True"
+                                             behaviors:NumericKeypad.AllowDecimal="False"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="8,0">
+                                    <TextBlock Text="Inscrição estadual" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding InscricaoEstadual, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                             behaviors:AlphaKeypad.IsEnabled="True"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Margin="8,0,0,0">
+                                    <TextBlock Text="CRT" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding Crt, UpdateSourceTrigger=LostFocus}" Style="{StaticResource FieldTextBox}"
+                                             behaviors:NumericKeypad.IsEnabled="True"
+                                             behaviors:NumericKeypad.AllowDecimal="False"/>
+                                </StackPanel>
+                            </Grid>
+                            <Grid Margin="0,12,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="2*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,8,0">
+                                    <TextBlock Text="Logradouro" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding Logradouro, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                             behaviors:AlphaKeypad.IsEnabled="True"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="8,0">
+                                    <TextBlock Text="Número" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding Numero, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                             behaviors:AlphaKeypad.IsEnabled="True"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Margin="8,0,0,0">
+                                    <TextBlock Text="Bairro" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding Bairro, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                             behaviors:AlphaKeypad.IsEnabled="True"/>
+                                </StackPanel>
+                            </Grid>
+                            <Grid Margin="0,12,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="80"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,8,0">
+                                    <TextBlock Text="Código IBGE" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding CodigoMunicipio, UpdateSourceTrigger=LostFocus}" Style="{StaticResource FieldTextBox}"
+                                             behaviors:NumericKeypad.IsEnabled="True"
+                                             behaviors:NumericKeypad.AllowDecimal="False"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="8,0">
+                                    <TextBlock Text="Município" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding Municipio, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                             behaviors:AlphaKeypad.IsEnabled="True"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Margin="8,0">
+                                    <TextBlock Text="UF" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding Uf, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                             behaviors:AlphaKeypad.IsEnabled="True"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="3" Margin="8,0,0,0">
+                                    <TextBlock Text="CEP" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding Cep, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                             behaviors:NumericKeypad.IsEnabled="True"
+                                             behaviors:NumericKeypad.AllowDecimal="False"/>
+                                </StackPanel>
+                            </Grid>
+                            <Grid Margin="0,12,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,8,0">
+                                    <TextBlock Text="Telefone" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding Telefone, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                             behaviors:NumericKeypad.IsEnabled="True"
+                                             behaviors:NumericKeypad.AllowDecimal="False"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="8,0">
+                                    <TextBlock Text="Série" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding Serie, UpdateSourceTrigger=LostFocus}" Style="{StaticResource FieldTextBox}"
+                                             behaviors:NumericKeypad.IsEnabled="True"
+                                             behaviors:NumericKeypad.AllowDecimal="False"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Margin="8,0">
+                                    <TextBlock Text="Próximo número" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding ProximoNumero, UpdateSourceTrigger=LostFocus}" Style="{StaticResource FieldTextBox}"
+                                             behaviors:NumericKeypad.IsEnabled="True"
+                                             behaviors:NumericKeypad.AllowDecimal="False"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="3" Margin="8,0,0,0">
+                                    <TextBlock Text="Id CSC" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding IdTokenCsc, UpdateSourceTrigger=LostFocus}" Style="{StaticResource FieldTextBox}"
+                                             behaviors:NumericKeypad.IsEnabled="True"
+                                             behaviors:NumericKeypad.AllowDecimal="False"/>
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Text="CSC" Style="{StaticResource MutedText}" Margin="0,12,0,6"/>
+                            <TextBox Text="{Binding Csc, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                     behaviors:AlphaKeypad.IsEnabled="True"/>
+                            <TextBlock Text="Certificado A1" Style="{StaticResource MutedText}" Margin="0,12,0,6"/>
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Content="Arquivo" Style="{StaticResource GhostTouchButton}" Margin="8,0,0,0" Padding="16,10"
+                                        Command="{Binding EscolherCertificadoCommand}"/>
+                                <TextBox Text="{Binding CertificadoArquivo, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                         behaviors:AlphaKeypad.IsEnabled="True"/>
+                            </DockPanel>
+                            <TextBlock Text="{Binding SenhaDica}" Style="{StaticResource MutedText}" Margin="0,12,0,6"/>
+                            <TextBox Text="{Binding SenhaCertificado, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                     behaviors:AlphaKeypad.IsEnabled="True"/>
+                            <TextBlock Text="Justificativa de contingência" Style="{StaticResource MutedText}" Margin="0,12,0,6"/>
+                            <TextBox Text="{Binding JustificativaContingencia, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                     behaviors:AlphaKeypad.IsEnabled="True"/>
+                            <CheckBox Content="Ambiente de homologação" Style="{StaticResource FieldCheckBox}" Margin="0,12,0,0" IsChecked="{Binding Homologacao}"/>
+                            <CheckBox Content="Emitir cupom fiscal por padrão" Style="{StaticResource FieldCheckBox}" IsChecked="{Binding EmitirPorPadrao}"/>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                                <Button Content="Salvar" Style="{StaticResource PrimaryTouchButton}" Height="52" Width="160" Margin="0,0,8,0" Command="{Binding SaveCommand}"/>
+                                <Button Content="Testar SEFAZ" Style="{StaticResource TouchButton}" Height="52" Width="160" Margin="0,0,8,0" Command="{Binding TestarSefazCommand}"/>
+                                <Button Content="Transmitir contingências" Style="{StaticResource TouchButton}" Height="52" Width="240" Command="{Binding TransmitirCommand}"/>
+                            </StackPanel>
+
+                            <TextBlock Text="NFC-e em contingência" Style="{StaticResource TitleText}" FontSize="20" Margin="0,24,0,8"/>
+                            <ItemsControl ItemsSource="{Binding Pendencias}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Style="{StaticResource MutedText}" Margin="0,0,0,4">
+                                            <Run Text="Série"/><Run Text="{Binding Serie, Mode=OneWay}"/>
+                                            <Run Text=" nº "/><Run Text="{Binding Numero, Mode=OneWay}"/>
+                                            <Run Text=" · "/><Run Text="{Binding Chave, Mode=OneWay}"/>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+            </Grid>
+
+            <!-- Configurações -->
+            <Grid Grid.Row="1" Margin="16" DataContext="{Binding Configuracoes}" Visibility="{Binding DataContext.SettingsScreenVisibility, RelativeSource={RelativeSource AncestorType={x:Type Window}}}">
+                <Border Background="{StaticResource BrushBgPanel}" CornerRadius="20" Padding="20">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel MaxWidth="720" HorizontalAlignment="Left">
+                            <TextBlock Text="Configurações" Style="{StaticResource TitleText}" FontSize="28" Margin="0,0,0,16"/>
+                            <Expander Style="{StaticResource SettingsSection}" IsExpanded="True">
+                                <Expander.Header>
+                                    <TextBlock Text="Interface humana" FontSize="18" FontWeight="SemiBold"/>
+                                </Expander.Header>
+                                <StackPanel>
+                                    <RadioButton GroupName="InterfaceHumana" Content="Touchscreen" Style="{StaticResource SettingsRadio}"
+                                                 IsChecked="{Binding Touchscreen, Mode=TwoWay}"/>
+                                    <RadioButton GroupName="InterfaceHumana" Content="Dispositivos padrão" Style="{StaticResource SettingsRadio}"
+                                                 IsChecked="{Binding DispositivosPadrao, Mode=TwoWay}"/>
+                                </StackPanel>
+                            </Expander>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
             </Grid>
 
             <!-- Users management -->
@@ -723,10 +1172,12 @@
                                 Command="{Binding NewCommand}"/>
 
                         <TextBlock Text="Nome" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
-                        <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"/>
+                        <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                 behaviors:AlphaKeypad.IsEnabled="True"/>
 
                         <TextBlock Text="Login" Style="{StaticResource MutedText}" Margin="0,12,0,6"/>
                         <TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                 behaviors:AlphaKeypad.IsEnabled="True"
                                  IsEnabled="{Binding UsernameEnabled}"/>
 
                         <TextBlock Text="PIN" Style="{StaticResource MutedText}" Margin="0,12,0,6"/>
@@ -748,8 +1199,162 @@
             </Grid>
 
             <!-- Sales history -->
+            <Grid Grid.Row="1" Margin="16" DataContext="{Binding NfceGestao}" Visibility="{Binding DataContext.NfceScreenVisibility, RelativeSource={RelativeSource AncestorType={x:Type Window}}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <DockPanel Margin="0,0,0,12">
+                    <TextBlock Text="NFC-e" Style="{StaticResource TitleText}" FontSize="26" DockPanel.Dock="Left"/>
+                    <TextBlock Text="{Binding Message}" Style="{StaticResource MutedText}" VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                </DockPanel>
+
+                <Border Grid.Row="1" Background="{StaticResource BrushBgPanel}" CornerRadius="16" Padding="14" Margin="0,0,0,12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150"/>
+                            <ColumnDefinition Width="150"/>
+                            <ColumnDefinition Width="180"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="48"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Text="De" Style="{StaticResource MutedText}" Margin="0,0,12,6" VerticalAlignment="Bottom"/>
+                        <DatePicker Grid.Row="1" Margin="0,0,12,0" Style="{StaticResource FieldDatePicker}"
+                                    SelectedDate="{Binding FromDate}" VerticalAlignment="Stretch"/>
+
+                        <TextBlock Grid.Column="1" Text="Até" Style="{StaticResource MutedText}" Margin="0,0,12,6" VerticalAlignment="Bottom"/>
+                        <DatePicker Grid.Row="1" Grid.Column="1" Margin="0,0,12,0" Style="{StaticResource FieldDatePicker}"
+                                    SelectedDate="{Binding ToDate}" VerticalAlignment="Stretch"/>
+
+                        <TextBlock Grid.Column="2" Text="Status" Style="{StaticResource MutedText}" Margin="0,0,12,6" VerticalAlignment="Bottom"/>
+                        <ComboBox Grid.Row="1" Grid.Column="2" Margin="0,0,12,0" Style="{StaticResource FieldComboBox}"
+                                  VerticalAlignment="Stretch"
+                                  ItemsSource="{Binding StatusOptions}"
+                                  DisplayMemberPath="Label"
+                                  SelectedItem="{Binding SelectedStatus}"/>
+
+                        <TextBlock Grid.Column="3" Text="Venda" Style="{StaticResource MutedText}" Margin="0,0,12,6" VerticalAlignment="Bottom"/>
+                        <TextBox Grid.Row="1" Grid.Column="3" VerticalAlignment="Stretch" VerticalContentAlignment="Center"
+                                 Margin="0,0,12,0" Padding="14,0" Height="48"
+                                 Text="{Binding Ticket, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource FieldTextBox}"
+                                 behaviors:NumericKeypad.IsEnabled="True"
+                                 behaviors:NumericKeypad.AllowDecimal="False"
+                                 Tag="Número da venda"/>
+
+                        <CheckBox Grid.Row="1" Grid.Column="4" Content="Caixa em operação" Style="{StaticResource FieldCheckBox}"
+                                  IsChecked="{Binding SomenteCaixaAberto}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+
+                        <Button Grid.Row="1" Grid.Column="5" Content="Filtrar" Style="{StaticResource PrimaryTouchButton}"
+                                Height="48" MinWidth="110" Margin="0,0,8,0" Padding="16,0" VerticalAlignment="Stretch"
+                                Command="{Binding SearchCommand}"/>
+                        <Button Grid.Row="1" Grid.Column="6" Content="Caixa atual" Style="{StaticResource GhostTouchButton}"
+                                Height="48" MinWidth="120" Margin="0,0,8,0" Padding="16,0" VerticalAlignment="Stretch"
+                                Command="{Binding CurrentCashCommand}"/>
+                        <Button Grid.Row="1" Grid.Column="7" Content="Relatório" Style="{StaticResource GhostTouchButton}"
+                                Height="48" MinWidth="120" Margin="0" Padding="16,0" VerticalAlignment="Stretch"
+                                Command="{Binding ReportCommand}"/>
+                    </Grid>
+                </Border>
+
+                <Grid Grid.Row="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Background="{StaticResource BrushBgPanel}" CornerRadius="16" Padding="8">
+                        <DataGrid Style="{StaticResource CatalogDataGrid}" ItemsSource="{Binding Items}">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Número" Binding="{Binding Numero}" Width="110"/>
+                                <DataGridTextColumn Header="Emissão" Binding="{Binding EmitidoEm, StringFormat={}{0:dd/MM/yyyy HH:mm}}" Width="150"/>
+                                <DataGridTextColumn Header="Status" Binding="{Binding StatusLabel}" Width="120"/>
+                                <DataGridTextColumn Header="Venda" Binding="{Binding TicketNumber}" Width="130"/>
+                                <DataGridTextColumn Header="Total" Binding="{Binding Total, StringFormat=C}" Width="110"/>
+                                <DataGridTextColumn Header="Chave" Binding="{Binding Chave}" Width="*"/>
+                                <DataGridTemplateColumn Header="" Width="280">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="XML" Style="{StaticResource GhostTouchButton}" Padding="12,8" Margin="0,0,6,0"
+                                                        Visibility="{Binding PodeExportarXml, Converter={StaticResource BoolToVis}}"
+                                                        Command="{Binding DataContext.ExportXmlCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                        CommandParameter="{Binding}"/>
+                                                <Button Content="Enviar" Style="{StaticResource TouchButton}" Padding="12,8" Margin="0,0,6,0"
+                                                        Visibility="{Binding PodeEnviar, Converter={StaticResource BoolToVis}}"
+                                                        Command="{Binding DataContext.TransmitCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                        CommandParameter="{Binding}"/>
+                                                <Button Content="Cancelar" Style="{StaticResource GhostTouchButton}" Padding="12,8"
+                                                        Visibility="{Binding PodeCancelar, Converter={StaticResource BoolToVis}}"
+                                                        Command="{Binding DataContext.BeginCancelCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                        CommandParameter="{Binding}"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
+
+                    <DockPanel Grid.Row="1" Margin="0,12,0,0">
+                        <Button Content="Anterior" Style="{StaticResource GhostTouchButton}" Height="48" MinWidth="120" DockPanel.Dock="Left"
+                                Command="{Binding PreviousPageCommand}"/>
+                        <Button Content="Próxima" Style="{StaticResource GhostTouchButton}" Height="48" MinWidth="120" DockPanel.Dock="Right"
+                                Command="{Binding NextPageCommand}"/>
+                        <TextBlock Text="{Binding PageLabel}" Style="{StaticResource MutedText}" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                    </DockPanel>
+                </Grid>
+
+                <Border Grid.RowSpan="3" Background="#CC0F1419" Visibility="{Binding ShowCancelPanel, Converter={StaticResource BoolToVis}}" Panel.ZIndex="20">
+                    <Border Background="{StaticResource BrushBgPanel}" CornerRadius="24" Padding="28" Width="520"
+                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <StackPanel>
+                            <TextBlock Text="Cancelar NFC-e" Style="{StaticResource TitleText}" FontSize="26"/>
+                            <TextBlock Text="{Binding CancelHint}" Style="{StaticResource MutedText}" Margin="0,8,0,16" TextWrapping="Wrap"/>
+                            <TextBlock Text="Motivo" Style="{StaticResource MutedText}" Margin="0,0,0,8"/>
+                            <TextBox Text="{Binding CancelReason, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                     behaviors:AlphaKeypad.IsEnabled="True"
+                                     Height="90" MaxLength="255" TextWrapping="Wrap" AcceptsReturn="True" VerticalContentAlignment="Top"/>
+                            <StackPanel Visibility="{Binding AuthorizerVisibility}" Margin="0,14,0,0">
+                                <TextBlock Text="Autorização (gerente/admin)" Foreground="{StaticResource BrushWarning}" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                                <TextBlock Text="Usuário" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                <TextBox Text="{Binding AuthorizerUsername, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                         behaviors:AlphaKeypad.IsEnabled="True"/>
+                                <TextBlock Text="PIN" Style="{StaticResource MutedText}" Margin="0,12,0,6"/>
+                                <TextBox Text="{Binding AuthorizerPin, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                         FontFamily="{StaticResource FontDisplay}" FontSize="22"
+                                         behaviors:NumericKeypad.IsEnabled="True"
+                                         behaviors:NumericKeypad.AllowDecimal="False"/>
+                            </StackPanel>
+                            <TextBlock Text="{Binding Message}" Style="{StaticResource MutedText}" Margin="0,14,0,0" TextWrapping="Wrap"/>
+                            <Grid Margin="0,18,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Button Content="Voltar" Style="{StaticResource GhostTouchButton}" Height="56" Command="{Binding DismissCancelCommand}"/>
+                                <Button Grid.Column="1" Content="Confirmar cancelamento" Style="{StaticResource PrimaryTouchButton}" Height="56"
+                                        Background="#FF8B3A3A" Command="{Binding ConfirmCancelCommand}"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </Border>
+
+            </Grid>
+
             <Grid Grid.Row="1" Margin="16" DataContext="{Binding History}" Visibility="{Binding DataContext.HistoryScreenVisibility, RelativeSource={RelativeSource AncestorType={x:Type Window}}}">
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
@@ -764,12 +1369,14 @@
                 <Border Grid.Row="1" Background="{StaticResource BrushBgPanel}" CornerRadius="16" Padding="14" Margin="0,0,0,12">
                     <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="168"/>
-                                <ColumnDefinition Width="168"/>
+                                <ColumnDefinition Width="150"/>
+                                <ColumnDefinition Width="150"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -799,23 +1406,62 @@
                                       DisplayMemberPath="Label"
                                       SelectedItem="{Binding SelectedStatus}"/>
 
-                            <TextBlock Grid.Column="4" Text="Pagamento" Style="{StaticResource MutedText}" Margin="0,0,12,6" VerticalAlignment="Bottom"/>
+                            <TextBlock Grid.Column="4" Text="NFC-e" Style="{StaticResource MutedText}" Margin="0,0,12,6" VerticalAlignment="Bottom"/>
                             <ComboBox Grid.Row="1" Grid.Column="4" Margin="0,0,12,0" Style="{StaticResource FieldComboBox}"
+                                      VerticalAlignment="Stretch"
+                                      ItemsSource="{Binding NfceOptions}"
+                                      DisplayMemberPath="Label"
+                                      SelectedItem="{Binding SelectedNfce}"/>
+
+                            <TextBlock Grid.Column="5" Text="Pagamento" Style="{StaticResource MutedText}" Margin="0,0,12,6" VerticalAlignment="Bottom"/>
+                            <ComboBox Grid.Row="1" Grid.Column="5" Margin="0,0,12,0" Style="{StaticResource FieldComboBox}"
                                       VerticalAlignment="Stretch"
                                       ItemsSource="{Binding PaymentOptions}"
                                       DisplayMemberPath="Label"
                                       SelectedItem="{Binding SelectedPayment}"/>
 
-                            <TextBlock Grid.Column="5" Text="Ticket" Style="{StaticResource MutedText}" Margin="0,0,0,6" VerticalAlignment="Bottom"/>
-                            <TextBox Grid.Row="1" Grid.Column="5" VerticalAlignment="Stretch" VerticalContentAlignment="Center"
-                                     Padding="14,0" Height="48"
+                            <TextBlock Grid.Column="6" Text="Ticket" Style="{StaticResource MutedText}" Margin="0,0,12,6" VerticalAlignment="Bottom"/>
+                            <TextBox Grid.Row="1" Grid.Column="6" VerticalAlignment="Stretch" VerticalContentAlignment="Center"
+                                     Margin="0,0,12,0" Padding="14,0" Height="48"
                                      Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                                      Style="{StaticResource FieldTextBox}"
+                                     behaviors:NumericKeypad.IsEnabled="True"
+                                     behaviors:NumericKeypad.AllowDecimal="False"
                                      Tag="Número do ticket"/>
+                            <Button Grid.Row="1" Grid.Column="7" Content="Filtrar" Style="{StaticResource PrimaryTouchButton}"
+                                    Height="48" MinWidth="120" Margin="0" Padding="20,0" VerticalAlignment="Stretch"
+                                    Command="{Binding SearchCommand}"/>
                     </Grid>
                 </Border>
 
-                <Grid Grid.Row="2" Margin="0,0,0,12">
+                <Border Grid.Row="2" Background="{StaticResource BrushBgPanel}" CornerRadius="16" Padding="14" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Ciclo de caixa" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                        <ComboBox Style="{StaticResource SessionPickerComboBox}"
+                                  HorizontalAlignment="Stretch"
+                                  ItemsSource="{Binding Sessions}"
+                                  SelectedItem="{Binding SelectedSession}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel>
+                                        <TextBlock FontSize="18">
+                                            <Run Text="{Binding PeriodPrefix}" Foreground="{StaticResource BrushTextPrimary}"/>
+                                            <Run x:Name="StatusRun" Text="{Binding StatusText}" Foreground="{StaticResource BrushTextMuted}" FontWeight="SemiBold"/>
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding OperatorCaption}" Style="{StaticResource MutedText}" FontSize="13" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsOpen}" Value="True">
+                                            <Setter TargetName="StatusRun" Property="Foreground" Value="{StaticResource BrushSuccess}"/>
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+                </Border>
+
+                <Grid Grid.Row="3" Margin="0,0,0,12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="1.7*"/>
                         <ColumnDefinition Width="0.8*"/>
@@ -858,15 +1504,14 @@
                             <Button Content="Hoje" Style="{StaticResource GhostTouchButton}" Padding="16,10" Command="{Binding TodayCommand}"/>
                             <Button Content="7 dias" Style="{StaticResource GhostTouchButton}" Padding="16,10" Command="{Binding Last7DaysCommand}"/>
                             <Button Content="Resumo do dia" Style="{StaticResource GhostTouchButton}" Padding="16,10" Command="{Binding LoadDayReportCommand}"/>
-                            <Button Content="Filtrar" Style="{StaticResource PrimaryTouchButton}" Padding="20,10" Command="{Binding SearchCommand}"/>
                         </StackPanel>
                     </StackPanel>
                 </Grid>
 
-                <Grid Grid.Row="3">
+                <Grid Grid.Row="4">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="1.7*"/>
-                        <ColumnDefinition Width="0.8*"/>
+                        <ColumnDefinition Width="70*"/>
+                        <ColumnDefinition Width="30*"/>
                     </Grid.ColumnDefinitions>
 
                     <Border Background="{StaticResource BrushBgPanel}" CornerRadius="20" Padding="12" Margin="0,0,12,0">
@@ -874,22 +1519,27 @@
                                   ItemsSource="{Binding Sales}"
                                   SelectedItem="{Binding SelectedSale}">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Ticket" Binding="{Binding TicketNumber}" Width="150"/>
-                                <DataGridTextColumn Header="Data" Binding="{Binding SoldAt, StringFormat={}{0:dd/MM HH:mm}}" Width="110"/>
+                                <DataGridTextColumn Header="Ticket" Binding="{Binding TicketNumber}" Width="*"/>
+                                <DataGridTextColumn Header="Data" Binding="{Binding SoldAt, StringFormat={}{0:dd/MM HH:mm}}" Width="*"/>
                                 <DataGridTextColumn Header="Operador" Binding="{Binding OperatorName}" Width="*"/>
-                                <DataGridTextColumn Header="Terminal" Binding="{Binding TerminalCode}" Width="90"/>
-                                <DataGridTextColumn Header="Status" Binding="{Binding StatusLabel}" Width="100"/>
-                                <DataGridTextColumn Header="Pagamento" Binding="{Binding PaymentSummary}" Width="1.4*"/>
-                                <DataGridTextColumn Header="Total" Binding="{Binding Total, StringFormat=C}" Width="100"/>
-                                <DataGridTemplateColumn Header="" Width="280">
+                                <DataGridTextColumn Header="Status" Binding="{Binding StatusLabel}" Width="*"/>
+                                <DataGridTextColumn Header="NFC-e" Binding="{Binding NfceStatusLabel}" Width="*"/>
+                                <DataGridTextColumn Header="Pagamento" Binding="{Binding PaymentSummary}" Width="*"/>
+                                <DataGridTextColumn Header="Total" Binding="{Binding Total, StringFormat=C}" Width="*"/>
+                                <DataGridTemplateColumn Header="" Width="300">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <StackPanel Orientation="Horizontal">
-                                                <Button Content="Ver" Style="{StaticResource GhostTouchButton}" Padding="12,8" Margin="0,0,6,0"
-                                                        Command="{Binding DataContext.ViewDetailsCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                        CommandParameter="{Binding}"/>
                                                 <Button Content="Ticket" Style="{StaticResource TouchButton}" Padding="12,8" Margin="0,0,6,0"
                                                         Command="{Binding DataContext.ReprintCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                        CommandParameter="{Binding}"/>
+                                                <Button Content="XML" Style="{StaticResource GhostTouchButton}" Padding="12,8" Margin="0,0,6,0"
+                                                        Visibility="{Binding PodeExportarXml, Converter={StaticResource BoolToVis}}"
+                                                        Command="{Binding DataContext.ExportXmlCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                        CommandParameter="{Binding}"/>
+                                                <Button Content="Enviar" Style="{StaticResource TouchButton}" Padding="12,8" Margin="0,0,6,0"
+                                                        Visibility="{Binding PodeEnviarNfce, Converter={StaticResource BoolToVis}}"
+                                                        Command="{Binding DataContext.TransmitCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                         CommandParameter="{Binding}"/>
                                                 <Button Content="Cancelar" Style="{StaticResource GhostTouchButton}" Padding="12,8"
                                                         Command="{Binding DataContext.BeginCancelCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
@@ -927,12 +1577,16 @@
                                        Style="{StaticResource MutedText}" VerticalAlignment="Center"
                                        Visibility="{Binding HasSelection, Converter={StaticResource InverseBoolToVis}}"/>
 
-                            <StackPanel Grid.Row="2">
-                                <Button Content="Ver ticket" Style="{StaticResource PrimaryTouchButton}" Height="52" Margin="0,0,0,8"
+                            <StackPanel Orientation="Horizontal" Grid.Row="2">
+                                <Button Content="Reimprimir" Style="{StaticResource PrimaryTouchButton}" Height="52" Margin="0,0,0,0"
                                         Command="{Binding ViewDetailsCommand}" CommandParameter="{Binding SelectedSale}"/>
-                                <Button Content="Reimprimir" Style="{StaticResource GhostTouchButton}" Height="52" Margin="0,0,0,8"
-                                        Command="{Binding ReprintCommand}" CommandParameter="{Binding SelectedSale}"/>
-                                <Button Content="Cancelar venda" Style="{StaticResource TouchButton}" Height="52"
+                                <Button Content="XML" Style="{StaticResource GhostTouchButton}" Height="52" Margin="0,0,0,0"
+                                        Command="{Binding ExportXmlCommand}" CommandParameter="{Binding SelectedSale}"
+                                        Visibility="{Binding ExportXmlVisibility}"/>
+                                <Button Content="Enviar" Style="{StaticResource TouchButton}" Height="52" Margin="0,0,0,0"
+                                        Command="{Binding TransmitCommand}" CommandParameter="{Binding SelectedSale}"
+                                        Visibility="{Binding TransmitVisibility}"/>
+                                <Button Content="Cancelar" Style="{StaticResource TouchButton}" Height="52"
                                         Background="#FF8B3A3A"
                                         Command="{Binding BeginCancelCommand}" CommandParameter="{Binding SelectedSale}"
                                         Visibility="{Binding CancelButtonVisibility}"/>
@@ -942,22 +1596,24 @@
                 </Grid>
 
                 <!-- Cancel sale overlay (inside history screen) -->
-                <Border Grid.RowSpan="3" Background="#CC0F1419" Visibility="{Binding ShowCancelPanel, Converter={StaticResource BoolToVis}}" Panel.ZIndex="20">
+                <Border Grid.RowSpan="4" Background="#CC0F1419" Visibility="{Binding ShowCancelPanel, Converter={StaticResource BoolToVis}}" Panel.ZIndex="20">
                     <Border Background="{StaticResource BrushBgPanel}" CornerRadius="24" Padding="28" Width="520"
                             HorizontalAlignment="Center" VerticalAlignment="Center">
                         <StackPanel>
                             <TextBlock Text="Cancelar venda" Style="{StaticResource TitleText}" FontSize="26"/>
-                            <TextBlock Text="A venda permanece no histórico. Estoque e pagamentos serão revertidos."
+                            <TextBlock Text="{Binding CancelHint}"
                                        Style="{StaticResource MutedText}" Margin="0,8,0,16" TextWrapping="Wrap"/>
 
                             <TextBlock Text="Motivo" Style="{StaticResource MutedText}" Margin="0,0,0,8"/>
                             <TextBox Text="{Binding CancelReason, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
-                                     Height="90" TextWrapping="Wrap" AcceptsReturn="True" VerticalContentAlignment="Top"/>
+                                     behaviors:AlphaKeypad.IsEnabled="True"
+                                     Height="90" MaxLength="255" TextWrapping="Wrap" AcceptsReturn="True" VerticalContentAlignment="Top"/>
 
                             <StackPanel Visibility="{Binding AuthorizerVisibility}" Margin="0,14,0,0">
                                 <TextBlock Text="Autorização (gerente/admin)" Foreground="{StaticResource BrushWarning}" FontWeight="SemiBold" Margin="0,0,0,10"/>
                                 <TextBlock Text="Usuário" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
-                                <TextBox Text="{Binding AuthorizerUsername, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"/>
+                                <TextBox Text="{Binding AuthorizerUsername, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                         behaviors:AlphaKeypad.IsEnabled="True"/>
                                 <TextBlock Text="PIN" Style="{StaticResource MutedText}" Margin="0,12,0,6"/>
                                 <TextBox Text="{Binding AuthorizerPin, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
                                          FontFamily="{StaticResource FontDisplay}" FontSize="22"
@@ -990,7 +1646,26 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <TextBlock Text="Movimento do caixa" Style="{StaticResource TitleText}" FontSize="28" Margin="0,0,0,12"/>
+                <DockPanel Margin="0,0,0,12" LastChildFill="True">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Content="Imprimir A4"
+                                Style="{StaticResource GhostTouchButton}"
+                                Padding="16,10"
+                                Margin="0,0,8,0"
+                                FontSize="16"
+                                Command="{Binding PrintA4Command}"/>
+                        <Button Content="Imprimir"
+                                Style="{StaticResource PrimaryTouchButton}"
+                                Padding="16,10"
+                                Margin="0"
+                                FontSize="16"
+                                Command="{Binding PrintThermalCommand}"/>
+                    </StackPanel>
+                    <TextBlock Text="Movimento do caixa"
+                               Style="{StaticResource TitleText}"
+                               FontSize="28"
+                               VerticalAlignment="Center"/>
+                </DockPanel>
 
                 <StackPanel Grid.Row="1" Margin="0,0,0,12">
                     <Border Background="{StaticResource BrushBgPanel}" CornerRadius="16" Padding="14">
@@ -1081,7 +1756,7 @@
                     </Border>
                     <Border Background="{StaticResource BrushBgPanel}" CornerRadius="16" Padding="16" Margin="8,0">
                         <StackPanel>
-                            <TextBlock Text="Saldo em dinheiro" Style="{StaticResource MutedText}"/>
+                            <TextBlock Text="Saldo em dinheiro (gaveta)" Style="{StaticResource MutedText}"/>
                             <TextBlock Text="{Binding CashBalanceLabel}" FontFamily="{StaticResource FontDisplay}" FontSize="28" Foreground="{StaticResource BrushTextPrimary}" Margin="0,6,0,0"/>
                             <TextBlock Text="Abertura + dinheiro + suprimentos − sangrias" Style="{StaticResource MutedText}" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0"/>
                         </StackPanel>
@@ -1279,7 +1954,8 @@
                                     <TextBox Text="{Binding WithdrawalAmount, UpdateSourceTrigger=LostFocus, StringFormat=N2}" Style="{StaticResource FieldTextBox}"
                                              behaviors:NumericKeypad.IsEnabled="True"/>
                                     <TextBlock Text="Motivo" Style="{StaticResource MutedText}" Margin="0,14,0,6"/>
-                                    <TextBox Text="{Binding WithdrawalReason, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"/>
+                                    <TextBox Text="{Binding WithdrawalReason, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                             behaviors:AlphaKeypad.IsEnabled="True"/>
                                     <Grid Margin="0,20,0,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -1307,7 +1983,8 @@
                                     <TextBox Text="{Binding SupplyAmount, UpdateSourceTrigger=LostFocus, StringFormat=N2}" Style="{StaticResource FieldTextBox}"
                                              behaviors:NumericKeypad.IsEnabled="True"/>
                                     <TextBlock Text="Motivo" Style="{StaticResource MutedText}" Margin="0,14,0,6"/>
-                                    <TextBox Text="{Binding SupplyReason, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"/>
+                                    <TextBox Text="{Binding SupplyReason, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                             behaviors:AlphaKeypad.IsEnabled="True"/>
                                     <Grid Margin="0,20,0,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -1395,6 +2072,7 @@
                                         <TextBlock Text="Usuário" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
                                         <TextBox Text="{Binding DiscountAuthorizerUsername, UpdateSourceTrigger=PropertyChanged}"
                                                  Style="{StaticResource FieldTextBox}"
+                                                 behaviors:AlphaKeypad.IsEnabled="True"
                                                  LostFocus="DiscountAuthorizerField_LostFocus"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Margin="6,0,0,0">
@@ -1457,6 +2135,14 @@
                                 </StackPanel>
                             </Border>
 
+                            <Button Content="{Binding CupomFiscalLabel}" Style="{StaticResource TouchButton}" Height="56" Margin="0,16,0,0"
+                                    Command="{Binding ToggleCupomFiscalCommand}"/>
+                            <StackPanel Margin="0,8,0,0" Visibility="{Binding CpfConsumidorVisibility}">
+                                <TextBlock Text="CPF do consumidor (opcional)" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
+                                <TextBox Text="{Binding CpfConsumidor, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                         behaviors:NumericKeypad.IsEnabled="True"
+                                         behaviors:NumericKeypad.AllowDecimal="False"/>
+                            </StackPanel>
                             <Button Content="Pagar" Style="{StaticResource TouchButton}" Height="64" Margin="0,16,0,0"
                                     Command="{Binding OpenPaymentMethodCommand}"/>
                             <Button Content="Gravar" Style="{StaticResource PrimaryTouchButton}" Height="64" Margin="0,8,0,0"
@@ -1540,7 +2226,14 @@
                         <TextBlock Text="Informe o fundo de troco inicial" Style="{StaticResource MutedText}" Margin="0,8,0,20"/>
                         <TextBox Text="{Binding OpeningAmount, UpdateSourceTrigger=LostFocus, StringFormat=N2}" Style="{StaticResource FieldTextBox}"
                                  behaviors:NumericKeypad.IsEnabled="True"/>
-                        <Button Content="ABRIR CAIXA" Style="{StaticResource PrimaryTouchButton}" Height="64" Margin="0,20,0,0" Command="{Binding ConfirmOpenCashCommand}"/>
+                        <Grid Margin="0,20,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Content="Agora não" Style="{StaticResource GhostTouchButton}" Height="56" Command="{Binding CancelOpenCashCommand}"/>
+                            <Button Grid.Column="1" Content="ABRIR CAIXA" Style="{StaticResource PrimaryTouchButton}" Height="56" Command="{Binding ConfirmOpenCashCommand}"/>
+                        </Grid>
                     </StackPanel>
                 </Border>
             </Border>
@@ -1589,6 +2282,7 @@
                                      behaviors:NumericKeypad.IsEnabled="True"/>
                             <TextBlock Text="Motivo" Style="{StaticResource MutedText}" Margin="0,14,0,8"/>
                             <TextBox Text="{Binding CashMovementReason, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                     behaviors:AlphaKeypad.IsEnabled="True"
                                      Height="72" TextWrapping="Wrap" AcceptsReturn="True" VerticalContentAlignment="Top"/>
                         </StackPanel>
 
@@ -1643,8 +2337,9 @@
                 </Border>
             </Border>
 
-            <!-- Ticket preview -->
-            <Border Grid.Row="0" Grid.RowSpan="2" Panel.ZIndex="30" Background="#CC0F1419" Visibility="{Binding ShowTicketPanel, Converter={StaticResource BoolToVis}}">
+            <!-- Cash movement thermal preview -->
+            <Border Grid.Row="0" Grid.RowSpan="2" Panel.ZIndex="30" Background="#CC0F1419"
+                    Visibility="{Binding CashSession.ShowThermalPreview, Converter={StaticResource BoolToVis}}">
                 <Border Background="{StaticResource BrushBgPanel}" CornerRadius="24" Padding="24" Width="520" MaxHeight="780"
                         HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Grid>
@@ -1654,11 +2349,11 @@
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <TextBlock Text="{Binding TicketPanelTitle}" Style="{StaticResource TitleText}" FontSize="26" Margin="0,0,0,12"/>
+                        <TextBlock Text="Movimento de caixa" Style="{StaticResource TitleText}" FontSize="26" Margin="0,0,0,12"/>
 
                         <Border Grid.Row="1" Background="#FF11161C" CornerRadius="14" Padding="16">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="520">
-                                <TextBox Text="{Binding TicketPreviewText}"
+                                <TextBox Text="{Binding CashSession.ThermalPreviewText, Mode=OneWay}"
                                          IsReadOnly="True"
                                          TextWrapping="NoWrap"
                                          BorderThickness="0"
@@ -1675,10 +2370,183 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
+                            <Button Content="Fechar" Style="{StaticResource GhostTouchButton}" Height="56"
+                                    Command="{Binding CashSession.ClosePreviewCommand}"/>
+                            <Button Grid.Column="1" Content="Imprimir" Style="{StaticResource PrimaryTouchButton}" Height="56"
+                                    Command="{Binding CashSession.ConfirmThermalPrintCommand}"/>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Border>
+
+            <!-- NFC-e A4 preview -->
+            <Border Grid.Row="0" Grid.RowSpan="2" Panel.ZIndex="30" Background="#CC0F1419"
+                    Visibility="{Binding NfceGestao.ShowA4Preview, Converter={StaticResource BoolToVis}}">
+                <Border Background="{StaticResource BrushBgPanel}" CornerRadius="24" Padding="24" Width="780" MaxHeight="860"
+                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Text="Relatório de NFC-e · A4" Style="{StaticResource TitleText}" FontSize="26" Margin="0,0,0,12"/>
+
+                        <Border Grid.Row="1" Background="White" CornerRadius="14" Padding="12">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="640">
+                                <ItemsControl ItemsSource="{Binding NfceGestao.A4PreviewPages}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Image Source="{Binding}" Stretch="Uniform" Margin="0,0,0,12"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+
+                        <Grid Grid.Row="2" Margin="0,16,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Content="Fechar" Style="{StaticResource GhostTouchButton}" Height="56"
+                                    Command="{Binding NfceGestao.CloseReportCommand}"/>
+                            <Button Grid.Column="1" Content="Imprimir" Style="{StaticResource PrimaryTouchButton}" Height="56"
+                                    Command="{Binding NfceGestao.ConfirmA4PrintCommand}"/>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Border>
+
+            <!-- Cash movement A4 preview -->
+            <Border Grid.Row="0" Grid.RowSpan="2" Panel.ZIndex="30" Background="#CC0F1419"
+                    Visibility="{Binding CashSession.ShowA4Preview, Converter={StaticResource BoolToVis}}">
+                <Border Background="{StaticResource BrushBgPanel}" CornerRadius="24" Padding="24" Width="780" MaxHeight="860"
+                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Text="Movimento de caixa · A4" Style="{StaticResource TitleText}" FontSize="26" Margin="0,0,0,12"/>
+
+                        <Border Grid.Row="1" Background="White" CornerRadius="14" Padding="12">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="640">
+                                <ItemsControl ItemsSource="{Binding CashSession.A4PreviewPages}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Image Source="{Binding}" Stretch="Uniform" Margin="0,0,0,12"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+
+                        <Grid Grid.Row="2" Margin="0,16,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Content="Fechar" Style="{StaticResource GhostTouchButton}" Height="56"
+                                    Command="{Binding CashSession.ClosePreviewCommand}"/>
+                            <Button Grid.Column="1" Content="Imprimir" Style="{StaticResource PrimaryTouchButton}" Height="56"
+                                    Command="{Binding CashSession.ConfirmA4PrintCommand}"/>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Border>
+
+            <!-- Ticket preview -->
+            <Border Grid.Row="0" Grid.RowSpan="2" Panel.ZIndex="30" Background="#CC0F1419" Visibility="{Binding ShowTicketPanel, Converter={StaticResource BoolToVis}}">
+                <Border Background="{StaticResource BrushBgPanel}" CornerRadius="24" Padding="24" Width="520" MaxHeight="780"
+                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Text="{Binding TicketPanelTitle}" Style="{StaticResource TitleText}" FontSize="26" Margin="0,0,0,12"/>
+
+                        <Border Grid.Row="1" Background="#FF11161C" CornerRadius="14" Padding="16">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="520">
+                                <StackPanel>
+                                    <TextBox Text="{Binding TicketPreviewText}"
+                                             IsReadOnly="True"
+                                             TextWrapping="NoWrap"
+                                             BorderThickness="0"
+                                             Background="Transparent"
+                                             Foreground="{StaticResource BrushTextPrimary}"
+                                             FontFamily="Consolas"
+                                             FontSize="13"
+                                             AcceptsReturn="True"/>
+                                    <Image Source="{Binding TicketQrImage}" Width="180" Height="180"
+                                           HorizontalAlignment="Center" Margin="0,12,0,0"
+                                           Visibility="{Binding TicketQrVisibility}"/>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Border>
+
+                        <Grid Grid.Row="2" Margin="0,16,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
                             <Button Content="Nova venda" Style="{StaticResource GhostTouchButton}" Height="56" Command="{Binding CloseTicketCommand}"/>
                             <Button Grid.Column="1" Content="Imprimir" Style="{StaticResource PrimaryTouchButton}" Height="56" Command="{Binding PrintTicketCommand}"/>
                         </Grid>
                     </Grid>
+                </Border>
+            </Border>
+
+            <Border Grid.Row="0" Grid.RowSpan="2" Panel.ZIndex="90" Background="#E60F1419"
+                    Visibility="{Binding NfceEnvioVisivel}" IsHitTestVisible="True" Focusable="False"
+                    KeyboardNavigation.TabNavigation="None" Cursor="Arrow">
+                <Border Background="{StaticResource BrushBgPanel}" BorderBrush="{StaticResource BrushStroke}" BorderThickness="1"
+                        CornerRadius="24" Padding="36" Width="460" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <StackPanel HorizontalAlignment="Center">
+                        <Grid Width="84" Height="84" HorizontalAlignment="Center">
+                            <Ellipse Width="84" Height="84" Stroke="{StaticResource BrushStroke}" StrokeThickness="6"/>
+                            <Ellipse Width="84" Height="84" Stroke="{StaticResource BrushAccent}" StrokeThickness="6"
+                                     StrokeDashArray="2.4 1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+                                        <Setter Property="RenderTransform">
+                                            <Setter.Value>
+                                                <RotateTransform Angle="0"/>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding NfceEnvioVisivel}" Value="Visible">
+                                                <DataTrigger.EnterActions>
+                                                    <BeginStoryboard x:Name="NfceGiro">
+                                                        <Storyboard RepeatBehavior="Forever">
+                                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                             From="0" To="360" Duration="0:0:1.15"/>
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </DataTrigger.EnterActions>
+                                                <DataTrigger.ExitActions>
+                                                    <StopStoryboard BeginStoryboardName="NfceGiro"/>
+                                                </DataTrigger.ExitActions>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                        </Grid>
+                        <TextBlock Text="Comunicando com a SEFAZ" Style="{StaticResource TitleText}" FontSize="26"
+                                   HorizontalAlignment="Center" Margin="0,22,0,0" TextAlignment="Center"/>
+                        <TextBlock Text="{Binding NfceEnvioMensagem}" Foreground="{StaticResource BrushTextPrimary}"
+                                   FontSize="16" TextWrapping="Wrap" TextAlignment="Center" Margin="0,12,0,0"/>
+                        <TextBlock Text="Aguarde. Esta etapa segue sozinha." Style="{StaticResource MutedText}"
+                                   HorizontalAlignment="Center" Margin="0,16,0,0" TextAlignment="Center"/>
+                    </StackPanel>
                 </Border>
             </Border>
 

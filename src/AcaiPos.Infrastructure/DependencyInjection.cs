@@ -36,6 +36,8 @@ public static class DependencyInjection
         await MigrateProductCategoriesAsync(db);
         await MigrateSaleSurchargeAsync(db);
         await MigrateFormasPagamentoAsync(db);
+        await MigrateFiscalAsync(db);
+        await MigrateConfiguracoesAsync(db);
         await SeedAsync(db, hasher);
     }
 
@@ -189,6 +191,136 @@ public static class DependencyInjection
             if (shouldClose)
                 await connection.CloseAsync();
         }
+    }
+
+    private static async Task MigrateFiscalAsync(PosDbContext db)
+    {
+        var connection = db.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+        if (shouldClose)
+            await connection.OpenAsync();
+
+        try
+        {
+            await AddColumnIfMissingAsync(connection, "Products", "Ncm", "TEXT NOT NULL DEFAULT ''");
+            await AddColumnIfMissingAsync(connection, "Products", "Cfop", "TEXT NOT NULL DEFAULT '5102'");
+            await AddColumnIfMissingAsync(connection, "Products", "Origem", "INTEGER NOT NULL DEFAULT 0");
+            await AddColumnIfMissingAsync(connection, "Products", "Csosn", "TEXT NOT NULL DEFAULT '102'");
+            await AddColumnIfMissingAsync(connection, "Products", "Cest", "TEXT NULL");
+            await AddColumnIfMissingAsync(connection, "Products", "PisCst", "TEXT NOT NULL DEFAULT '49'");
+            await AddColumnIfMissingAsync(connection, "Products", "CofinsCst", "TEXT NOT NULL DEFAULT '49'");
+            await AddColumnIfMissingAsync(connection, "Products", "IbsCbsCst", "TEXT NOT NULL DEFAULT '000'");
+            await AddColumnIfMissingAsync(connection, "Products", "CClassTrib", "TEXT NOT NULL DEFAULT '000001'");
+            await AddColumnIfMissingAsync(connection, "Sales", "CpfConsumidor", "TEXT NULL");
+            await AddColumnIfMissingAsync(connection, "FormasPagamento", "CodigoTpag", "TEXT NOT NULL DEFAULT '99'");
+            await AddColumnIfMissingAsync(connection, "Categories", "IsDefault", "INTEGER NOT NULL DEFAULT 0");
+
+            if (await HasTableAsync(connection, "FormasPagamento"))
+            {
+                await ExecuteNonQueryAsync(connection, """UPDATE "FormasPagamento" SET "CodigoTpag" = '17' WHERE "Id" = 1;""");
+                await ExecuteNonQueryAsync(connection, """UPDATE "FormasPagamento" SET "CodigoTpag" = '04' WHERE "Id" = 2;""");
+                await ExecuteNonQueryAsync(connection, """UPDATE "FormasPagamento" SET "CodigoTpag" = '03' WHERE "Id" = 3;""");
+                await ExecuteNonQueryAsync(connection, """UPDATE "FormasPagamento" SET "CodigoTpag" = '01' WHERE "Id" = 4;""");
+            }
+
+            if (!await HasTableAsync(connection, "ConfiguracoesFiscais"))
+            {
+                await ExecuteNonQueryAsync(
+                    connection,
+                    """
+                    CREATE TABLE "ConfiguracoesFiscais" (
+                        "Id" TEXT NOT NULL CONSTRAINT "PK_ConfiguracoesFiscais" PRIMARY KEY,
+                        "StoreId" TEXT NOT NULL,
+                        "RazaoSocial" TEXT NOT NULL,
+                        "NomeFantasia" TEXT NOT NULL,
+                        "Cnpj" TEXT NOT NULL,
+                        "InscricaoEstadual" TEXT NOT NULL,
+                        "Crt" INTEGER NOT NULL,
+                        "Logradouro" TEXT NOT NULL,
+                        "Numero" TEXT NOT NULL,
+                        "Bairro" TEXT NOT NULL,
+                        "CodigoMunicipio" INTEGER NOT NULL,
+                        "Municipio" TEXT NOT NULL,
+                        "Uf" TEXT NOT NULL,
+                        "Cep" TEXT NOT NULL,
+                        "Telefone" TEXT NULL,
+                        "Csc" TEXT NOT NULL,
+                        "IdTokenCsc" INTEGER NOT NULL,
+                        "Homologacao" INTEGER NOT NULL,
+                        "Serie" INTEGER NOT NULL,
+                        "ProximoNumero" INTEGER NOT NULL,
+                        "CertificadoArquivo" TEXT NULL,
+                        "CertificadoSenhaProtegida" TEXT NULL,
+                        "JustificativaContingencia" TEXT NOT NULL,
+                        "EmitirPorPadrao" INTEGER NOT NULL,
+                        "CreatedAt" TEXT NOT NULL,
+                        "UpdatedAt" TEXT NOT NULL,
+                        "DeletedAt" TEXT NULL,
+                        "SyncStatus" INTEGER NOT NULL
+                    );
+                    """);
+                await ExecuteNonQueryAsync(
+                    connection,
+                    """CREATE UNIQUE INDEX "IX_ConfiguracoesFiscais_StoreId" ON "ConfiguracoesFiscais" ("StoreId");""");
+            }
+
+            if (!await HasTableAsync(connection, "DocumentosFiscais"))
+            {
+                await ExecuteNonQueryAsync(
+                    connection,
+                    """
+                    CREATE TABLE "DocumentosFiscais" (
+                        "Id" TEXT NOT NULL CONSTRAINT "PK_DocumentosFiscais" PRIMARY KEY,
+                        "SaleId" TEXT NULL,
+                        "Modelo" INTEGER NOT NULL,
+                        "Serie" INTEGER NOT NULL,
+                        "Numero" INTEGER NOT NULL,
+                        "Chave" TEXT NULL,
+                        "TipoEmissao" INTEGER NOT NULL,
+                        "Status" INTEGER NOT NULL,
+                        "Protocolo" TEXT NULL,
+                        "CStat" TEXT NULL,
+                        "Motivo" TEXT NULL,
+                        "QrCode" TEXT NULL,
+                        "UrlChave" TEXT NULL,
+                        "Xml" TEXT NULL,
+                        "ProtocoloCancelamento" TEXT NULL,
+                        "XmlEvento" TEXT NULL,
+                        "EmitidoEm" TEXT NOT NULL,
+                        "AutorizadoEm" TEXT NULL,
+                        "CanceladoEm" TEXT NULL,
+                        "CreatedAt" TEXT NOT NULL,
+                        "UpdatedAt" TEXT NOT NULL,
+                        "DeletedAt" TEXT NULL,
+                        "SyncStatus" INTEGER NOT NULL,
+                        CONSTRAINT "FK_DocumentosFiscais_Sales_SaleId" FOREIGN KEY ("SaleId") REFERENCES "Sales" ("Id") ON DELETE RESTRICT
+                    );
+                    """);
+                await ExecuteNonQueryAsync(
+                    connection,
+                    """CREATE INDEX "IX_DocumentosFiscais_SaleId" ON "DocumentosFiscais" ("SaleId");""");
+                await ExecuteNonQueryAsync(
+                    connection,
+                    """CREATE INDEX "IX_DocumentosFiscais_Serie_Numero" ON "DocumentosFiscais" ("Serie", "Numero");""");
+            }
+
+            await AddColumnIfMissingAsync(connection, "DocumentosFiscais", "ProtocoloCancelamento", "TEXT NULL");
+            await AddColumnIfMissingAsync(connection, "DocumentosFiscais", "XmlEvento", "TEXT NULL");
+            await AddColumnIfMissingAsync(connection, "DocumentosFiscais", "CanceladoEm", "TEXT NULL");
+        }
+        finally
+        {
+            if (shouldClose)
+                await connection.CloseAsync();
+        }
+    }
+
+    private static async Task AddColumnIfMissingAsync(DbConnection connection, string table, string column, string definition)
+    {
+        if (!await HasTableAsync(connection, table) || await HasColumnAsync(connection, table, column))
+            return;
+
+        await ExecuteNonQueryAsync(connection, $"""ALTER TABLE "{table}" ADD COLUMN "{column}" {definition};""");
     }
 
     private static async Task EnsureLegacyPaymentMethodDefaultAsync(DbConnection connection)
@@ -406,6 +538,47 @@ public static class DependencyInjection
         """CREATE INDEX "IX_ProductCategories_CategoryId" ON "ProductCategories" ("CategoryId");"""
     ];
 
+    private static async Task MigrateConfiguracoesAsync(PosDbContext db)
+    {
+        var connection = db.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+        if (shouldClose)
+            await connection.OpenAsync();
+
+        try
+        {
+            if (!await HasTableAsync(connection, "Configuracoes"))
+            {
+                await ExecuteNonQueryAsync(
+                    connection,
+                    """
+                    CREATE TABLE "Configuracoes" (
+                        "Id" TEXT NOT NULL CONSTRAINT "PK_Configuracoes" PRIMARY KEY,
+                        "ModoInterface" INTEGER NOT NULL,
+                        "CreatedAt" TEXT NOT NULL,
+                        "UpdatedAt" TEXT NOT NULL,
+                        "DeletedAt" TEXT NULL,
+                        "SyncStatus" INTEGER NOT NULL
+                    );
+                    """);
+                await ExecuteNonQueryAsync(
+                    connection,
+                    """CREATE INDEX "IX_Configuracoes_SyncStatus" ON "Configuracoes" ("SyncStatus");""");
+            }
+        }
+        finally
+        {
+            if (shouldClose)
+                await connection.CloseAsync();
+        }
+
+        if (await db.Configuracoes.AnyAsync())
+            return;
+
+        db.Add(Configuracao.Criar());
+        await db.SaveChangesAsync();
+    }
+
     private static async Task SeedAsync(PosDbContext db, IPasswordHasher hasher)
     {
         if (await db.Users.AnyAsync())
@@ -425,18 +598,18 @@ public static class DependencyInjection
 
         var products = new[]
         {
-            Product.Create("Açaí 300ml", "ACAI-300", [bowls.Id], 18.90m, "7891001003001", 7.50m, 100),
-            Product.Create("Açaí 500ml", "ACAI-500", [bowls.Id], 24.90m, "7891001005001", 10.00m, 100),
-            Product.Create("Açaí 700ml", "ACAI-700", [bowls.Id], 29.90m, "7891001007001", 12.50m, 80),
-            Product.Create("Açaí 1L", "ACAI-1000", [bowls.Id], 39.90m, "7891001010001", 16.00m, 50),
-            Product.Create("Água Mineral 500ml", "AGUA-500", [drinks.Id], 4.00m, "7891002005001", 1.20m, 200),
-            Product.Create("Suco Natural 400ml", "SUCO-400", [drinks.Id], 9.90m, "7891002004001", 3.50m, 60),
-            Product.Create("Refrigerante Lata", "REFRI-350", [drinks.Id], 6.50m, "7891002003501", 2.80m, 120),
-            Product.Create("Granola", "ADD-GRANOLA", [toppings.Id], 3.50m, "7891003000001", 1.00m, 200),
-            Product.Create("Banana", "ADD-BANANA", [toppings.Id], 2.50m, "7891003000002", 0.80m, 150),
-            Product.Create("Leite Condensado", "ADD-LEITE", [toppings.Id], 3.00m, "7891003000003", 1.10m, 150),
-            Product.Create("Paçoca", "ADD-PACOCA", [toppings.Id], 2.50m, "7891003000004", 0.90m, 150),
-            Product.Create("Misto Quente", "LANCHE-MISTO", [snacks.Id], 14.90m, "7891004000001", 6.00m, 40),
+            Product.Create("Açaí 300ml", "ACAI-300", [bowls.Id], 18.90m, "7891001003001", 7.50m, 100, ncm: "20079990"),
+            Product.Create("Açaí 500ml", "ACAI-500", [bowls.Id], 24.90m, "7891001005001", 10.00m, 100, ncm: "20079990"),
+            Product.Create("Açaí 700ml", "ACAI-700", [bowls.Id], 29.90m, "7891001007001", 12.50m, 80, ncm: "20079990"),
+            Product.Create("Açaí 1L", "ACAI-1000", [bowls.Id], 39.90m, "7891001010001", 16.00m, 50, ncm: "20079990"),
+            Product.Create("Água Mineral 500ml", "AGUA-500", [drinks.Id], 4.00m, "7891002005001", 1.20m, 200, ncm: "22011000"),
+            Product.Create("Suco Natural 400ml", "SUCO-400", [drinks.Id], 9.90m, "7891002004001", 3.50m, 60, ncm: "20098990"),
+            Product.Create("Refrigerante Lata", "REFRI-350", [drinks.Id], 6.50m, "7891002003501", 2.80m, 120, ncm: "22021000"),
+            Product.Create("Granola", "ADD-GRANOLA", [toppings.Id], 3.50m, "7891003000001", 1.00m, 200, ncm: "19042000"),
+            Product.Create("Banana", "ADD-BANANA", [toppings.Id], 2.50m, "7891003000002", 0.80m, 150, ncm: "08039000"),
+            Product.Create("Leite Condensado", "ADD-LEITE", [toppings.Id], 3.00m, "7891003000003", 1.10m, 150, ncm: "04029900"),
+            Product.Create("Paçoca", "ADD-PACOCA", [toppings.Id], 2.50m, "7891003000004", 0.90m, 150, ncm: "17049020"),
+            Product.Create("Misto Quente", "LANCHE-MISTO", [snacks.Id], 14.90m, "7891004000001", 6.00m, 40, ncm: "19059090"),
         };
 
         db.Add(store);

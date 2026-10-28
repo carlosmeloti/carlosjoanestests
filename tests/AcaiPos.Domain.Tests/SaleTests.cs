@@ -10,7 +10,7 @@ public class SaleTests
     {
         var category = Category.Create("Bowls");
         var product = Product.Create("Açaí 500ml", "ACAI-500", [category.Id], 25m);
-        var sale = Sale.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "T20260101-0001");
+        var sale = Sale.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "T20260101-0001");
 
         sale.AddItem(product, 2);
         sale.AddPayment(4, "Dinheiro", true, 50m, 60m);
@@ -26,7 +26,7 @@ public class SaleTests
     {
         var category = Category.Create("Bowls");
         var product = Product.Create("Açaí 500ml", "ACAI-500", [category.Id], 100m);
-        var sale = Sale.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "T20260101-0002");
+        var sale = Sale.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "T20260101-0002");
 
         sale.AddItem(product, 1);
         sale.AddPayment(4, "Dinheiro", true, 40m, 40m);
@@ -43,7 +43,7 @@ public class SaleTests
     {
         var category = Category.Create("Bowls");
         var product = Product.Create("Açaí 500ml", "ACAI-500", [category.Id], 100m);
-        var sale = Sale.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "T20260101-0004");
+        var sale = Sale.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "T20260101-0004");
 
         sale.AddItem(product, 1);
         sale.ApplyDiscount(10m);
@@ -65,7 +65,7 @@ public class SaleTests
         var product = Product.Create("Açaí 500ml", "ACAI-500", [category.Id], 25m);
         product.Update(product.Name, product.Sku, [category.Id], product.SalePrice, product.Barcode, product.CostPrice, product.UnitOfMeasure, isActive: false);
 
-        var sale = Sale.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "T20260101-0003");
+        var sale = Sale.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "T20260101-0003");
 
         Assert.Throws<AcaiPos.Domain.Common.DomainException>(() => sale.AddItem(product, 1));
     }

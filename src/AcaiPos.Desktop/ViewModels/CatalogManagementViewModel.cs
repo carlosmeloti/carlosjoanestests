@@ -25,6 +25,7 @@ public sealed class CatalogManagementViewModel : ObservableObject
     private string _categoryDescription = string.Empty;
     private int _categorySortOrder;
     private bool _categoryIsActive = true;
+    private bool _categoryIsDefault;
 
     private Guid? _editingProductId;
     private string _productName = string.Empty;
@@ -35,6 +36,15 @@ public sealed class CatalogManagementViewModel : ObservableObject
     private decimal _productStock;
     private string _productUnit = "UN";
     private bool _productIsActive = true;
+    private string _productNcm = string.Empty;
+    private string _productCfop = "5102";
+    private int _productOrigem;
+    private string _productCsosn = "102";
+    private string _productCest = string.Empty;
+    private string _productPisCst = "49";
+    private string _productCofinsCst = "49";
+    private string _productIbsCbsCst = "000";
+    private string _productCClassTrib = "000001";
 
     /// <summary>
     /// Liga os comandos de abas, busca e edição de categorias e produtos.
@@ -151,6 +161,12 @@ public sealed class CatalogManagementViewModel : ObservableObject
         set => SetProperty(ref _categoryIsActive, value);
     }
 
+    public bool CategoryIsDefault
+    {
+        get => _categoryIsDefault;
+        set => SetProperty(ref _categoryIsDefault, value);
+    }
+
     public string ProductName
     {
         get => _productName;
@@ -191,6 +207,60 @@ public sealed class CatalogManagementViewModel : ObservableObject
     {
         get => _productUnit;
         set => SetProperty(ref _productUnit, value);
+    }
+
+    public string ProductNcm
+    {
+        get => _productNcm;
+        set => SetProperty(ref _productNcm, value);
+    }
+
+    public string ProductCfop
+    {
+        get => _productCfop;
+        set => SetProperty(ref _productCfop, value);
+    }
+
+    public int ProductOrigem
+    {
+        get => _productOrigem;
+        set => SetProperty(ref _productOrigem, value);
+    }
+
+    public string ProductCsosn
+    {
+        get => _productCsosn;
+        set => SetProperty(ref _productCsosn, value);
+    }
+
+    public string ProductCest
+    {
+        get => _productCest;
+        set => SetProperty(ref _productCest, value);
+    }
+
+    public string ProductPisCst
+    {
+        get => _productPisCst;
+        set => SetProperty(ref _productPisCst, value);
+    }
+
+    public string ProductCofinsCst
+    {
+        get => _productCofinsCst;
+        set => SetProperty(ref _productCofinsCst, value);
+    }
+
+    public string ProductIbsCbsCst
+    {
+        get => _productIbsCbsCst;
+        set => SetProperty(ref _productIbsCbsCst, value);
+    }
+
+    public string ProductCClassTrib
+    {
+        get => _productCClassTrib;
+        set => SetProperty(ref _productCClassTrib, value);
     }
 
     public bool ProductIsActive
@@ -254,6 +324,7 @@ public sealed class CatalogManagementViewModel : ObservableObject
         CategoryDescription = string.Empty;
         CategorySortOrder = (ManagedCategories.Count == 0 ? 0 : ManagedCategories.Max(c => c.SortOrder)) + 1;
         CategoryIsActive = true;
+        CategoryIsDefault = false;
         RaisePropertyChanged(nameof(CategoryEditorTitle));
         EditorMessage = "Preencha os dados da categoria.";
     }
@@ -271,6 +342,7 @@ public sealed class CatalogManagementViewModel : ObservableObject
         CategoryDescription = category.Description ?? string.Empty;
         CategorySortOrder = category.SortOrder;
         CategoryIsActive = category.IsActive;
+        CategoryIsDefault = category.IsDefault;
         RaisePropertyChanged(nameof(CategoryEditorTitle));
         EditorMessage = $"Editando categoria {category.Name}.";
     }
@@ -286,7 +358,8 @@ public sealed class CatalogManagementViewModel : ObservableObject
                 CategoryName,
                 CategoryDescription,
                 CategorySortOrder,
-                CategoryIsActive);
+                CategoryIsActive,
+                CategoryIsDefault);
 
             if (_editingCategoryId is null)
                 await _catalogService.CreateCategoryAsync(request);
@@ -352,6 +425,15 @@ public sealed class CatalogManagementViewModel : ObservableObject
         ProductStock = 0;
         ProductUnit = "UN";
         ProductIsActive = true;
+        ProductNcm = string.Empty;
+        ProductCfop = "5102";
+        ProductOrigem = 0;
+        ProductCsosn = "102";
+        ProductCest = string.Empty;
+        ProductPisCst = "49";
+        ProductCofinsCst = "49";
+        ProductIbsCbsCst = "000";
+        ProductCClassTrib = "000001";
         RaisePropertyChanged(nameof(ProductEditorTitle));
         EditorMessage = "Preencha os dados do produto.";
     }
@@ -374,6 +456,15 @@ public sealed class CatalogManagementViewModel : ObservableObject
         ProductStock = product.StockQuantity;
         ProductUnit = product.UnitOfMeasure;
         ProductIsActive = product.IsActive;
+        ProductNcm = product.Ncm;
+        ProductCfop = product.Cfop;
+        ProductOrigem = product.Origem;
+        ProductCsosn = product.Csosn;
+        ProductCest = product.Cest ?? string.Empty;
+        ProductPisCst = product.PisCst;
+        ProductCofinsCst = product.CofinsCst;
+        ProductIbsCbsCst = product.IbsCbsCst;
+        ProductCClassTrib = product.CClassTrib;
 
         RaisePropertyChanged(nameof(ProductEditorTitle));
         EditorMessage = $"Editando produto {product.Name}.";
@@ -395,7 +486,16 @@ public sealed class CatalogManagementViewModel : ObservableObject
                 ProductCostPrice,
                 ProductStock,
                 ProductUnit,
-                ProductIsActive);
+                ProductIsActive,
+                ProductNcm,
+                ProductCfop,
+                ProductOrigem,
+                ProductCsosn,
+                string.IsNullOrWhiteSpace(ProductCest) ? null : ProductCest,
+                ProductPisCst,
+                ProductCofinsCst,
+                ProductIbsCbsCst,
+                ProductCClassTrib);
 
             if (_editingProductId is null)
                 await _catalogService.CreateProductAsync(request);

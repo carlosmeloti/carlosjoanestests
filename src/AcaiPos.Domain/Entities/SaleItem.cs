@@ -39,6 +39,57 @@ public class SaleItem : Entity
         return item;
     }
 
+    public static SaleItem Restaurar(
+        Guid id,
+        Guid saleId,
+        Guid productId,
+        string productName,
+        string productSku,
+        decimal quantity,
+        decimal unitPrice,
+        decimal discountAmount,
+        decimal subtotal)
+    {
+        if (id == Guid.Empty)
+            throw new DomainException("Identificador é obrigatório.");
+        if (saleId == Guid.Empty)
+            throw new DomainException("Venda é obrigatória.");
+        if (productId == Guid.Empty)
+            throw new DomainException("Produto é obrigatório.");
+        if (string.IsNullOrWhiteSpace(productName))
+            throw new DomainException("Nome do produto é obrigatório.");
+        if (string.IsNullOrWhiteSpace(productSku))
+            throw new DomainException("SKU do produto é obrigatório.");
+        if (quantity <= 0)
+            throw new DomainException("Quantidade deve ser maior que zero.");
+
+        var item = new SaleItem
+        {
+            SaleId = saleId,
+            ProductId = productId,
+            ProductName = productName.Trim(),
+            ProductSku = productSku.Trim(),
+            Quantity = quantity,
+            UnitPrice = decimal.Round(unitPrice, 2),
+            DiscountAmount = decimal.Round(discountAmount, 2),
+            Subtotal = decimal.Round(subtotal, 2)
+        };
+        item.DefinirId(id);
+        return item;
+    }
+
+    public void CopiarDe(SaleItem origem)
+    {
+        SaleId = origem.SaleId;
+        ProductId = origem.ProductId;
+        ProductName = origem.ProductName;
+        ProductSku = origem.ProductSku;
+        Quantity = origem.Quantity;
+        UnitPrice = origem.UnitPrice;
+        DiscountAmount = origem.DiscountAmount;
+        Subtotal = origem.Subtotal;
+    }
+
     public void IncreaseQuantity(decimal quantity)
     {
         if (quantity <= 0)

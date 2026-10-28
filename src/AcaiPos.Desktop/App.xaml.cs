@@ -2,10 +2,14 @@
 using System.Windows;
 using AcaiPos.Application.Abstractions;
 using AcaiPos.Application.Services;
+using AcaiPos.Desktop.Behaviors;
+using AcaiPos.Desktop.Fiscal;
 using AcaiPos.Desktop.Printing;
 using AcaiPos.Desktop.ViewModels;
+using AcaiPos.Domain.Enums;
 using AcaiPos.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using NfeCliente;
 using Microsoft.Extensions.Hosting;
 
 namespace AcaiPos.Desktop;
@@ -37,13 +41,22 @@ public partial class App : System.Windows.Application
                 {
                     services.AddApplication();
                     services.AddInfrastructure(dbPath);
-                    services.AddSingleton<ITicketPrinter, WpfTicketPrinter>();
+                    services.AddSingleton<ClienteNfe>();
+                    services.AddSingleton<IEmissorNfce, UnimakeEmissorNfce>();
+                    services.AddSingleton<IProtecaoCertificado, DpapiProtecaoCertificado>();
+                    services.AddSingleton<SpoolerTextPrinter>();
+                    services.AddSingleton<ITicketPrinter, SpoolerTicketPrinter>();
+                    services.AddSingleton<ICashMovementPrinter, CashMovementPrinter>();
                     services.AddSingleton<MainViewModel>();
                     services.AddSingleton<MainWindow>();
                 })
                 .Build();
 
             await _host.Services.InitializeDatabaseAsync();
+
+            var modo = await _host.Services.GetRequiredService<ConfiguracaoService>()
+                .ObterModoInterfaceAsync();
+            FloatingKeyboards.SetEnabled(modo == ModoInterface.Touchscreen);
 
             var window = _host.Services.GetRequiredService<MainWindow>();
             MainWindow = window;

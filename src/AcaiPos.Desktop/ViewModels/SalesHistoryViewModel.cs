@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using AcaiPos.Application.Models;
 using AcaiPos.Application.Services;
 using AcaiPos.Domain.Common;
 using AcaiPos.Domain.Enums;
+using Microsoft.Win32;
 
 namespace AcaiPos.Desktop.ViewModels;
 
@@ -25,20 +27,36 @@ public sealed class PaymentFilterOption
 }
 
 /// <summary>
+/// Opção do filtro de NFC-e. Sem status e sem a marca de ausência significa todas.
+/// </summary>
+public sealed class NfceFilterOption
+{
+    public string Label { get; init; } = string.Empty;
+    public StatusDocumentoFiscal? Status { get; init; }
+    public bool SemNfce { get; init; }
+}
+
+/// <summary>
 /// Histórico de vendas: filtros, totais, detalhe, reimpressão e cancelamento.
 /// </summary>
 public sealed class SalesHistoryViewModel : ObservableObject
 {
     private readonly SaleService _saleService;
+    private readonly NfceService _nfceService;
+    private readonly CashRegisterService _cashRegisterService;
     private readonly Action<string>? _notify;
     private readonly Func<Guid, Task>? _onViewTicket;
     private readonly Func<Guid, Task>? _onReprintTicket;
+    private bool _lastSearchWasCycle;
+    private bool _suppressSessionSelection;
+    private int _searchVersion;
 
     private DateTime _fromDate = DateTime.Today;
     private DateTime _toDate = DateTime.Today;
     private Guid? _operatorId = Guid.Empty;
     private Guid? _terminalId = Guid.Empty;
     private StatusFilterOption? _selectedStatus;
+    private NfceFilterOption? _selectedNfce;
     private PaymentFilterOption? _selectedPayment;
     private string _searchText = string.Empty;
     private string _message = "Selecione o período e filtre as vendas.";
@@ -56,17 +74,23 @@ public sealed class SalesHistoryViewModel : ObservableObject
     private string _authorizerPin = string.Empty;
     private bool _canCancelDirectly;
     private Guid? _cancelSaleId;
+    private CancelFiscalMode _cancelMode;
+    private CashSessionListItemDto? _selectedSession;
 
     /// <summary>
     /// Monta os filtros padrão e os comandos de busca, relatório, ticket e cancelamento.
     /// </summary>
     public SalesHistoryViewModel(
         SaleService saleService,
+        NfceService nfceService,
+        CashRegisterService cashRegisterService,
         Action<string>? notify = null,
         Func<Guid, Task>? onViewTicket = null,
         Func<Guid, Task>? onReprintTicket = null)
     {
         _saleService = saleService;
+        _nfceService = nfceService;
+        _cashRegisterService = cashRegisterService;
         _notify = notify;
         _onViewTicket = onViewTicket;
         _onReprintTicket = onReprintTicket;
@@ -79,6 +103,16 @@ public sealed class SalesHistoryViewModel : ObservableObject
         ];
         _selectedStatus = StatusOptions[0];
 
+        NfceOptions =
+        [
+            new NfceFilterOption { Label = "Todas" },
+            new NfceFilterOption { Label = "Autorizada", Status = StatusDocumentoFiscal.Autorizada },
+            new NfceFilterOption { Label = "Contingência", Status = StatusDocumentoFiscal.Contingencia },
+            new NfceFilterOption { Label = "Cancelada", Status = StatusDocumentoFiscal.Cancelada },
+            new NfceFilterOption { Label = "Sem NFC-e", SemNfce = true }
+        ];
+        _selectedNfce = NfceOptions[0];
+
         PaymentOptions.Add(new PaymentFilterOption { Label = "Todas" });
         _selectedPayment = PaymentOptions[0];
 
@@ -88,6 +122,8 @@ public sealed class SalesHistoryViewModel : ObservableObject
         LoadDayReportCommand = new RelayCommand(async _ => await LoadDayReportAsync());
         ViewDetailsCommand = new RelayCommand(async p => await ViewDetailsAsync(p as SaleHistoryItemDto));
         ReprintCommand = new RelayCommand(async p => await ReprintAsync(p as SaleHistoryItemDto));
+        ExportXmlCommand = new RelayCommand(async p => await ExportXmlAsync(p as SaleHistoryItemDto));
+        TransmitCommand = new RelayCommand(async p => await TransmitAsync(p as SaleHistoryItemDto));
         BeginCancelCommand = new RelayCommand(p => BeginCancel(p as SaleHistoryItemDto));
         ConfirmCancelCommand = new RelayCommand(async _ => await ConfirmCancelAsync());
         DismissCancelCommand = new RelayCommand(_ => CloseCancelPanel());
@@ -99,9 +135,11 @@ public sealed class SalesHistoryViewModel : ObservableObject
     }
 
     public ObservableCollection<SaleHistoryItemDto> Sales { get; } = [];
+    public ObservableCollection<CashSessionListItemDto> Sessions { get; } = [];
     public ObservableCollection<OperatorOptionDto> Operators { get; } = [];
     public ObservableCollection<TerminalOptionDto> Terminals { get; } = [];
     public IReadOnlyList<StatusFilterOption> StatusOptions { get; }
+    public IReadOnlyList<NfceFilterOption> NfceOptions { get; }
     public ObservableCollection<PaymentFilterOption> PaymentOptions { get; } = [];
 
     public RelayCommand SearchCommand { get; }
@@ -110,6 +148,8 @@ public sealed class SalesHistoryViewModel : ObservableObject
     public RelayCommand LoadDayReportCommand { get; }
     public RelayCommand ViewDetailsCommand { get; }
     public RelayCommand ReprintCommand { get; }
+    public RelayCommand ExportXmlCommand { get; }
+    public RelayCommand TransmitCommand { get; }
     public RelayCommand BeginCancelCommand { get; }
     public RelayCommand ConfirmCancelCommand { get; }
     public RelayCommand DismissCancelCommand { get; }
@@ -139,10 +179,40 @@ public sealed class SalesHistoryViewModel : ObservableObject
         set => SetProperty(ref _terminalId, value);
     }
 
+    /// <summary>
+    /// Ciclo da busca própria. Trocar o item consulta na hora.
+    /// </summary>
+    public CashSessionListItemDto? SelectedSession
+    {
+        get => _selectedSession;
+        set
+        {
+            if (_suppressSessionSelection)
+                return;
+
+            if (EqualityComparer<CashSessionListItemDto?>.Default.Equals(_selectedSession, value))
+                return;
+
+            _selectedSession = value;
+            RaisePropertyChanged();
+            _ = SearchByCycleAsync();
+        }
+    }
+
+    public string EmptySessionsText => Sessions.Count == 0
+        ? "Nenhum ciclo de caixa neste terminal."
+        : string.Empty;
+
     public StatusFilterOption? SelectedStatus
     {
         get => _selectedStatus;
         set => SetProperty(ref _selectedStatus, value);
+    }
+
+    public NfceFilterOption? SelectedNfce
+    {
+        get => _selectedNfce;
+        set => SetProperty(ref _selectedNfce, value);
     }
 
     public PaymentFilterOption? SelectedPayment
@@ -203,6 +273,8 @@ public sealed class SalesHistoryViewModel : ObservableObject
             RaisePropertyChanged(nameof(DetailVisibility));
             RaisePropertyChanged(nameof(CanCancelSelected));
             RaisePropertyChanged(nameof(CancelButtonVisibility));
+            RaisePropertyChanged(nameof(ExportXmlVisibility));
+            RaisePropertyChanged(nameof(TransmitVisibility));
             if (value is not null)
                 DetailText = BuildDetail(value);
         }
@@ -212,6 +284,14 @@ public sealed class SalesHistoryViewModel : ObservableObject
     public string DetailVisibility => HasSelection ? "Visible" : "Collapsed";
     public bool CanCancelSelected => SelectedSale is { Status: SaleStatus.Completed };
     public string CancelButtonVisibility => CanCancelSelected ? "Visible" : "Collapsed";
+    public string ExportXmlVisibility => SelectedSale?.PodeExportarXml == true ? "Visible" : "Collapsed";
+    public string TransmitVisibility => SelectedSale?.PodeEnviarNfce == true ? "Visible" : "Collapsed";
+    public string CancelHint => _cancelMode switch
+    {
+        CancelFiscalMode.Sefaz => "A NFC-e autorizada também será cancelada na SEFAZ. O motivo precisa ter entre 15 e 255 caracteres. Estoque e pagamentos serão revertidos.",
+        CancelFiscalMode.Contingencia => "A NFC-e em contingência não será enviada à SEFAZ e a venda será cancelada no PDV. Estoque e pagamentos serão revertidos.",
+        _ => "A venda permanece no histórico. Estoque e pagamentos serão revertidos."
+    };
 
     public string DetailText
     {
@@ -262,7 +342,7 @@ public sealed class SalesHistoryViewModel : ObservableObject
     public string AuthorizerVisibility => CanCancelDirectly ? "Collapsed" : "Visible";
 
     /// <summary>
-    /// Carrega operadores e terminais, define a permissão de cancelamento e busca as vendas de hoje.
+    /// Carrega operadores, terminais e ciclos, e busca as vendas do ciclo atual.
     /// </summary>
     public async Task InitializeAsync()
     {
@@ -290,7 +370,27 @@ public sealed class SalesHistoryViewModel : ObservableObject
         SelectedPayment = PaymentOptions.FirstOrDefault(option => option.Description == currentDescription)
             ?? PaymentOptions[0];
 
-        await LoadTodayAsync();
+        await LoadSessionsAsync();
+        await SearchByCycleAsync();
+    }
+
+    /// <summary>
+    /// Lista os ciclos do terminal e pré-seleciona o aberto, ou o mais recente.
+    /// </summary>
+    private async Task LoadSessionsAsync()
+    {
+        var sessions = await _cashRegisterService.ListSessionsAsync();
+        var next = sessions.FirstOrDefault(session => session.IsOpen) ?? sessions.FirstOrDefault();
+
+        _suppressSessionSelection = true;
+        Sessions.Clear();
+        foreach (var session in sessions)
+            Sessions.Add(session);
+
+        _selectedSession = next;
+        RaisePropertyChanged(nameof(SelectedSession));
+        _suppressSessionSelection = false;
+        RaisePropertyChanged(nameof(EmptySessionsText));
     }
 
     /// <summary>
@@ -314,14 +414,18 @@ public sealed class SalesHistoryViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Consulta as vendas do filtro, atualiza totais e o resumo do dia final.
+    /// Consulta as vendas do filtro de período, atualiza totais e o resumo do dia final.
     /// </summary>
     private async Task SearchAsync()
     {
+        var version = ++_searchVersion;
+
         try
         {
             if (ToDate < FromDate)
                 throw new DomainException("A data final não pode ser menor que a inicial.");
+
+            _lastSearchWasCycle = false;
 
             var fromUtc = DateTime.SpecifyKind(FromDate.Date, DateTimeKind.Local).ToUniversalTime();
             var toUtcExclusive = DateTime.SpecifyKind(ToDate.Date.AddDays(1), DateTimeKind.Local).ToUniversalTime();
@@ -333,36 +437,105 @@ public sealed class SalesHistoryViewModel : ObservableObject
                 TerminalId == Guid.Empty ? null : TerminalId,
                 SelectedStatus?.Value,
                 SelectedPayment?.Description,
-                SearchText);
+                SearchText,
+                NfceStatus: SelectedNfce?.Status,
+                SemNfce: SelectedNfce?.SemNfce == true);
 
             var items = await _saleService.SearchHistoryAsync(filter);
-            Sales.Clear();
-            foreach (var item in items)
-                Sales.Add(item);
+            if (version != _searchVersion)
+                return;
 
-            var totals = await _saleService.GetHistoryTotalsAsync(items);
-            SalesCountLabel = totals.Count.ToString();
-            CompletedCountLabel = totals.CompletedCount.ToString();
-            CancelledCountLabel = totals.CancelledCount.ToString();
-            CompletedTotalLabel = totals.CompletedTotal.ToString("C");
-            AverageTicketLabel = totals.AverageTicket.ToString("C");
-
-            Message = items.Count == 0
+            var message = items.Count == 0
                 ? "Nenhuma venda encontrada para o filtro."
                 : $"Exibindo {items.Count} venda(s).";
 
-            SelectedSale = null;
+            await ApplyResultsAsync(items, message);
+            if (version != _searchVersion)
+                return;
             await LoadDayReportAsync();
             _notify?.Invoke(Message);
         }
         catch (DomainException ex)
         {
-            Message = ex.Message;
+            if (version == _searchVersion)
+                Message = ex.Message;
         }
         catch (Exception ex)
         {
-            Message = $"Erro ao consultar histórico: {ex.Message}";
+            if (version == _searchVersion)
+                Message = $"Erro ao consultar histórico: {ex.Message}";
         }
+    }
+
+    /// <summary>
+    /// Consulta só as vendas do ciclo selecionado, sem os filtros de período.
+    /// </summary>
+    private async Task SearchByCycleAsync()
+    {
+        var version = ++_searchVersion;
+
+        try
+        {
+            _lastSearchWasCycle = true;
+            var session = SelectedSession;
+
+            if (session is null)
+            {
+                await ApplyResultsAsync([], "Nenhum ciclo de caixa neste terminal.");
+                if (version != _searchVersion)
+                    return;
+
+                _notify?.Invoke(Message);
+                return;
+            }
+
+            var items = await _saleService.SearchHistoryAsync(
+                new SaleHistoryFilter(
+                    CashRegisterId: session.Id,
+                    NfceStatus: SelectedNfce?.Status,
+                    SemNfce: SelectedNfce?.SemNfce == true));
+            if (version != _searchVersion)
+                return;
+
+            var message = items.Count == 0
+                ? "Nenhuma venda encontrada neste ciclo."
+                : $"Exibindo {items.Count} venda(s) do ciclo.";
+
+            await ApplyResultsAsync(items, message);
+            if (version != _searchVersion)
+                return;
+
+            _notify?.Invoke(Message);
+        }
+        catch (DomainException ex)
+        {
+            if (version == _searchVersion)
+                Message = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            if (version == _searchVersion)
+                Message = $"Erro ao consultar histórico: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Preenche a lista, os totais e a mensagem da última consulta.
+    /// </summary>
+    private async Task ApplyResultsAsync(IReadOnlyList<SaleHistoryItemDto> items, string message)
+    {
+        Sales.Clear();
+        foreach (var item in items)
+            Sales.Add(item);
+
+        var totals = await _saleService.GetHistoryTotalsAsync(items);
+        SalesCountLabel = totals.Count.ToString();
+        CompletedCountLabel = totals.CompletedCount.ToString();
+        CancelledCountLabel = totals.CancelledCount.ToString();
+        CompletedTotalLabel = totals.CompletedTotal.ToString("C");
+        AverageTicketLabel = totals.AverageTicket.ToString("C");
+        Message = message;
+        SelectedSale = null;
     }
 
     /// <summary>
@@ -415,6 +588,66 @@ public sealed class SalesHistoryViewModel : ObservableObject
         await _onReprintTicket(sale.Id);
     }
 
+    private async Task ExportXmlAsync(SaleHistoryItemDto? item)
+    {
+        var sale = item ?? SelectedSale;
+        if (sale is null || !sale.PodeExportarXml)
+            return;
+
+        try
+        {
+            var xml = await _nfceService.ObterXmlAsync(sale.Id);
+            if (xml is null)
+            {
+                Message = "XML da NFC-e não encontrado.";
+                return;
+            }
+
+            var dialog = new SaveFileDialog
+            {
+                Filter = "XML (*.xml)|*.xml",
+                FileName = xml.NomeArquivo,
+                DefaultExt = ".xml",
+                AddExtension = true
+            };
+            if (dialog.ShowDialog() != true)
+                return;
+
+            await File.WriteAllTextAsync(dialog.FileName, xml.Conteudo);
+            Message = "XML da NFC-e salvo.";
+            _notify?.Invoke(Message);
+        }
+        catch (Exception ex)
+        {
+            Message = $"Erro ao salvar o XML: {ex.Message}";
+        }
+    }
+
+    private async Task TransmitAsync(SaleHistoryItemDto? item)
+    {
+        var sale = item ?? SelectedSale;
+        if (sale is null || !sale.PodeEnviarNfce)
+            return;
+
+        try
+        {
+            Message = await _nfceService.TransmitirDocumentoAsync(sale.Id);
+            _notify?.Invoke(Message);
+            if (_lastSearchWasCycle)
+                await SearchByCycleAsync();
+            else
+                await SearchAsync();
+        }
+        catch (DomainException ex)
+        {
+            Message = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Message = $"Erro ao enviar a NFC-e: {ex.Message}";
+        }
+    }
+
     /// <summary>
     /// Abre o painel de cancelamento da venda concluída, pedindo autorização quando o operador não pode cancelar sozinho.
     /// </summary>
@@ -428,6 +661,12 @@ public sealed class SalesHistoryViewModel : ObservableObject
         _cancelSaleId = sale.Id;
         CancelReason = string.Empty;
         AuthorizerPin = string.Empty;
+        _cancelMode = sale.CancelaNaSefaz
+            ? CancelFiscalMode.Sefaz
+            : sale.CancelaContingencia
+                ? CancelFiscalMode.Contingencia
+                : CancelFiscalMode.Local;
+        RaisePropertyChanged(nameof(CancelHint));
         CanCancelDirectly = _saleService.CurrentUserCanCancelSales;
         ShowCancelPanel = true;
         Message = CanCancelDirectly
@@ -445,18 +684,27 @@ public sealed class SalesHistoryViewModel : ObservableObject
 
         var saleId = _cancelSaleId.Value;
 
+        var modo = _cancelMode;
         try
         {
-            await _saleService.CancelSaleAsync(new CancelSaleRequest(
+            await _nfceService.CancelarVendaAsync(new CancelSaleRequest(
                 saleId,
                 CancelReason,
                 CanCancelDirectly ? null : AuthorizerUsername,
                 CanCancelDirectly ? null : AuthorizerPin));
 
-            Message = "Venda cancelada com sucesso. Estoque revertido.";
+            Message = modo switch
+            {
+                CancelFiscalMode.Sefaz => "Venda e NFC-e canceladas. Estoque revertido.",
+                CancelFiscalMode.Contingencia => "Venda cancelada. A NFC-e em contingência não será enviada. Estoque revertido.",
+                _ => "Venda cancelada com sucesso. Estoque revertido."
+            };
             _notify?.Invoke(Message);
             CloseCancelPanel();
-            await SearchAsync();
+            if (_lastSearchWasCycle)
+                await SearchByCycleAsync();
+            else
+                await SearchAsync();
 
             if (_onViewTicket is not null)
                 await _onViewTicket(saleId);
@@ -480,6 +728,8 @@ public sealed class SalesHistoryViewModel : ObservableObject
         CancelReason = string.Empty;
         AuthorizerPin = string.Empty;
         _cancelSaleId = null;
+        _cancelMode = CancelFiscalMode.Local;
+        RaisePropertyChanged(nameof(CancelHint));
     }
 
     /// <summary>
@@ -516,6 +766,24 @@ public sealed class SalesHistoryViewModel : ObservableObject
                 $"Motivo: {sale.CancellationReason ?? "—"}";
         }
 
+        if (sale.TemNfce)
+        {
+            text +=
+                $"\n\nNFC-e: {sale.NfceStatusLabel}\n" +
+                $"Série/Número: {sale.NfceSerie}/{sale.NfceNumero}\n" +
+                $"Chave: {sale.NfceChave ?? "—"}\n" +
+                $"Protocolo: {sale.NfceProtocolo ?? "—"}\n" +
+                $"cStat: {sale.NfceCStat ?? "—"}\n" +
+                $"Motivo: {sale.NfceMotivo ?? "—"}";
+        }
+
         return text;
+    }
+
+    private enum CancelFiscalMode
+    {
+        Local,
+        Sefaz,
+        Contingencia
     }
 }

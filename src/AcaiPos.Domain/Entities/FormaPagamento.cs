@@ -14,6 +14,7 @@ public class FormaPagamento
     public string CorRgbBotao { get; private set; } = DefaultButtonColor;
     public int Ordem { get; private set; }
     public bool IsEnable { get; private set; } = true;
+    public string CodigoTpag { get; private set; } = "99";
 
     private FormaPagamento()
     {

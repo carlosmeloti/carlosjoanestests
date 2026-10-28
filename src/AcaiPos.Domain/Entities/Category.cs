@@ -7,6 +7,7 @@ public class Category : AuditableEntity
     public string Name { get; private set; } = string.Empty;
     public string? Description { get; private set; }
     public bool IsActive { get; private set; } = true;
+    public bool IsDefault { get; private set; }
     public int SortOrder { get; private set; }
 
     private Category()
@@ -36,6 +37,15 @@ public class Category : AuditableEntity
         Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
         SortOrder = sortOrder;
         IsActive = isActive;
+        MarkUpdated();
+    }
+
+    public void DefinirPadrao(bool padrao)
+    {
+        if (IsDefault == padrao)
+            return;
+
+        IsDefault = padrao;
         MarkUpdated();
     }
 }

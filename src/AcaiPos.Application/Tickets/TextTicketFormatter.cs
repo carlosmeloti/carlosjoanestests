@@ -10,6 +10,9 @@ public sealed class TextTicketFormatter : ITicketFormatter
 {
     public string Format(TicketDto ticket)
     {
+        if (ticket.TemCupomFiscal)
+            return DanfeNfceFormatter.Format(ticket);
+
         var sb = new StringBuilder();
         var localSoldAt = ticket.SoldAt.Kind == DateTimeKind.Utc
             ? ticket.SoldAt.ToLocalTime()

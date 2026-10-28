@@ -1,0 +1,53 @@
+<UserControl x:Class="AcaiPos.Desktop.Behaviors.AlphaKeypadView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="False"
+             IsTabStop="False"
+             Width="1040"
+             Stylus.IsPressAndHoldEnabled="False">
+    <Border Background="{StaticResource BrushBgPanel}"
+            BorderBrush="{StaticResource BrushStroke}"
+            BorderThickness="1.5"
+            CornerRadius="16"
+            Padding="8">
+        <StackPanel>
+            <UniformGrid x:Name="TopRow" Columns="10">
+                <Button Style="{StaticResource PinButton}" Content="q" Tag="q" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="w" Tag="w" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="e" Tag="e" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="r" Tag="r" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="t" Tag="t" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="y" Tag="y" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="u" Tag="u" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="i" Tag="i" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="o" Tag="o" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="p" Tag="p" Focusable="False"/>
+            </UniformGrid>
+            <UniformGrid x:Name="MiddleRow" Columns="9" Width="919" HorizontalAlignment="Center">
+                <Button Style="{StaticResource PinButton}" Content="a" Tag="a" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="s" Tag="s" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="d" Tag="d" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="f" Tag="f" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="g" Tag="g" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="h" Tag="h" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="j" Tag="j" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="k" Tag="k" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="l" Tag="l" Focusable="False"/>
+            </UniformGrid>
+            <UniformGrid x:Name="ShiftRow" Columns="9" Width="919" HorizontalAlignment="Center">
+                <Button x:Name="ShiftButton" Style="{StaticResource PinButton}" Content="⇧" Tag="shift" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="z" Tag="z" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="x" Tag="x" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="c" Tag="c" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="v" Tag="v" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="b" Tag="b" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="n" Tag="n" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="m" Tag="m" Focusable="False"/>
+                <Button Style="{StaticResource PinButton}" Content="⌫" Tag="back" Focusable="False"/>
+            </UniformGrid>
+            <Button Style="{StaticResource PinButton}" Content="espaço" Tag="space" Focusable="False"/>
+            <Button Content="Fechar" Style="{StaticResource GhostTouchButton}" Height="56" Margin="6,4,6,6"
+                    Tag="close" Focusable="False"/>
+        </StackPanel>
+    </Border>
+</UserControl>

@@ -102,7 +102,7 @@ public sealed class CatalogService
             .Where(c => c.IsActive && c.DeletedAt == null)
             .OrderBy(c => c.SortOrder)
             .ThenBy(c => c.Name)
-            .Select(c => new CategoryDto(c.Id, c.Name, c.Description, c.SortOrder))
+            .Select(c => new CategoryDto(c.Id, c.Name, c.Description, c.SortOrder, c.IsDefault))
             .ToList();
 
         return Task.FromResult<IReadOnlyList<CategoryDto>>(items);
@@ -116,7 +116,7 @@ public sealed class CatalogService
             .Where(c => c.DeletedAt == null)
             .OrderBy(c => c.SortOrder)
             .ThenBy(c => c.Name)
-            .Select(c => new CategoryManageDto(c.Id, c.Name, c.Description, c.SortOrder, c.IsActive))
+            .Select(c => new CategoryManageDto(c.Id, c.Name, c.Description, c.SortOrder, c.IsActive, c.IsDefault))
             .ToList();
 
         return Task.FromResult<IReadOnlyList<CategoryManageDto>>(items);
@@ -233,11 +233,12 @@ public sealed class CatalogService
         if (!request.IsActive)
             category.Update(category.Name, category.Description, category.SortOrder, false);
 
+        AplicarPadrao(category, request.IsDefault);
         _db.Add(category);
         await _audit.LogAsync("CATEGORY_CREATE", "Category", category.Id, category.Name, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
-        return new CategoryManageDto(category.Id, category.Name, category.Description, category.SortOrder, category.IsActive);
+        return new CategoryManageDto(category.Id, category.Name, category.Description, category.SortOrder, category.IsActive, category.IsDefault);
     }
 
     public async Task<CategoryManageDto> UpdateCategoryAsync(
@@ -252,11 +253,12 @@ public sealed class CatalogService
 
         EnsureUniqueCategoryName(request.Name, categoryId);
         category.Update(request.Name, request.Description, request.SortOrder, request.IsActive);
+        AplicarPadrao(category, request.IsDefault);
 
         await _audit.LogAsync("CATEGORY_UPDATE", "Category", category.Id, category.Name, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
-        return new CategoryManageDto(category.Id, category.Name, category.Description, category.SortOrder, category.IsActive);
+        return new CategoryManageDto(category.Id, category.Name, category.Description, category.SortOrder, category.IsActive, category.IsDefault);
     }
 
     public async Task DeactivateCategoryAsync(Guid categoryId, CancellationToken cancellationToken = default)
@@ -288,6 +290,7 @@ public sealed class CatalogService
         EnsureCategoriesAssignable(categoryIds);
         EnsureUniqueSku(request.Sku);
         EnsureUniqueBarcode(request.Barcode);
+        EnsureFiscalProduct(request);
 
         var product = Domain.Entities.Product.Create(
             request.Name,
@@ -297,7 +300,16 @@ public sealed class CatalogService
             request.Barcode,
             request.CostPrice,
             request.StockQuantity,
-            request.UnitOfMeasure);
+            request.UnitOfMeasure,
+            request.Ncm,
+            request.Cfop,
+            request.Origem,
+            request.Csosn,
+            request.Cest,
+            request.PisCst,
+            request.CofinsCst,
+            request.IbsCbsCst,
+            request.CClassTrib);
 
         if (!request.IsActive)
         {
@@ -329,6 +341,7 @@ public sealed class CatalogService
         var categoryIds = NormalizeCategoryIds(request.CategoryIds);
         EnsureUniqueSku(request.Sku, productId);
         EnsureUniqueBarcode(request.Barcode, productId);
+        EnsureFiscalProduct(request);
 
         var product = _db.Products.FirstOrDefault(p => p.Id == productId && p.DeletedAt == null)
             ?? throw new DomainException("Produto não encontrado.");
@@ -346,7 +359,17 @@ public sealed class CatalogService
             request.Barcode,
             request.CostPrice,
             request.UnitOfMeasure,
-            request.IsActive);
+            request.IsActive,
+            request.Ncm,
+            request.Cfop,
+            request.Origem,
+            request.Csosn,
+            request.Cest,
+            request.PisCst,
+            request.CofinsCst,
+            request.IbsCbsCst,
+            request.CClassTrib,
+            atualizarDadosFiscais: true);
 
         if (stockDelta != 0)
         {
@@ -357,6 +380,7 @@ public sealed class CatalogService
                 "Ajuste manual no cadastro",
                 operatorId: _session.CurrentUser!.Id);
             _db.Add(movement);
+            SyncOutbox.Enqueue(_db, SyncAggregateType.StockMovement, movement.Id, SyncOperationKind.Upsert);
         }
 
         await _audit.LogAsync("PRODUCT_UPDATE", "Product", product.Id, $"{product.Sku} — {product.Name}", cancellationToken);
@@ -404,7 +428,16 @@ public sealed class CatalogService
             product.CostPrice,
             product.StockQuantity,
             product.UnitOfMeasure,
-            product.IsActive);
+            product.IsActive,
+            product.Ncm,
+            product.Cfop,
+            product.Origem,
+            product.Csosn,
+            product.Cest,
+            product.PisCst,
+            product.CofinsCst,
+            product.IbsCbsCst,
+            product.CClassTrib);
 
     private sealed record CategoryLabel(string Name, int SortOrder);
 
@@ -495,6 +528,27 @@ public sealed class CatalogService
             throw new DomainException("Sem permissão para gerenciar o catálogo.");
     }
 
+    private static void EnsureFiscalProduct(SaveProductRequest request)
+    {
+        var ncm = new string((request.Ncm ?? string.Empty).Where(char.IsDigit).ToArray());
+        if (ncm.Length != 8)
+            throw new DomainException("NCM deve ter 8 dígitos.");
+    }
+
+    private void AplicarPadrao(Domain.Entities.Category category, bool padrao)
+    {
+        if (padrao)
+        {
+            var anteriores = _db.Categories
+                .Where(c => c.DeletedAt == null && c.Id != category.Id && c.IsDefault)
+                .ToList();
+            foreach (var anterior in anteriores)
+                anterior.DefinirPadrao(false);
+        }
+
+        category.DefinirPadrao(padrao);
+    }
+
     private void EnsureUniqueCategoryName(string name, Guid? ignoreId = null)
     {
         var normalized = name.Trim().ToLowerInvariant();
@@ -561,12 +615,15 @@ public sealed class CashRegisterService
         if (existing is not null)
             throw new DomainException("Já existe um caixa aberto neste terminal.");
 
+        var store = _session.CurrentStore ?? throw new DomainException("Loja do terminal não encontrada.");
         var cash = Domain.Entities.CashRegister.Open(
             _session.CurrentTerminal!.Id,
+            store.Id,
             _session.CurrentUser!.Id,
             openingAmount);
 
         _db.Add(cash);
+        SyncOutbox.Enqueue(_db, SyncAggregateType.CashRegister, cash.Id, SyncOperationKind.Upsert);
         _session.SetCashRegister(cash);
 
         await _audit.LogAsync(
@@ -590,6 +647,8 @@ public sealed class CashRegisterService
         var cash = _session.OpenCashRegister!;
         var movement = cash.AddMovement(_session.CurrentUser!.Id, type, amount, reason);
         _db.Add(movement);
+        SyncOutbox.Enqueue(_db, SyncAggregateType.CashMovement, movement.Id, SyncOperationKind.Upsert);
+        SyncOutbox.Enqueue(_db, SyncAggregateType.CashRegister, cash.Id, SyncOperationKind.Upsert);
 
         await _audit.LogAsync(
             $"CASH_{type.ToString().ToUpperInvariant()}",
@@ -655,6 +714,7 @@ public sealed class CashRegisterService
         var withdrawals = movements.Where(m => m.Type == CashMovementType.Withdrawal).Sum(m => m.Amount);
 
         cash.Close(_session.CurrentUser!.Id, countedAmount, cashSales, supplies, withdrawals, notes);
+        SyncOutbox.Enqueue(_db, SyncAggregateType.CashRegister, cash.Id, SyncOperationKind.Upsert);
 
         await _audit.LogAsync(
             "CASH_CLOSE",
@@ -735,7 +795,8 @@ public sealed class CashRegisterService
             ?? throw new DomainException("Movimentação não encontrada.");
 
         cash.RemoveMovement(movement);
-        _db.Remove(movement);
+        SyncOutbox.Enqueue(_db, SyncAggregateType.CashMovement, movement.Id, SyncOperationKind.SoftDelete);
+        SyncOutbox.Enqueue(_db, SyncAggregateType.CashRegister, cash.Id, SyncOperationKind.Upsert);
 
         await _audit.LogAsync(
             "CASH_MOVEMENT_DELETE",
@@ -948,10 +1009,38 @@ public sealed class SaleService
         if (discountAmount > 0)
             EnsureDiscountAuthorized(discountAuthorizerUsername, discountAuthorizerPin);
 
+        var sale = await PrepararVendaAsync(
+            cartItems,
+            payments,
+            discountAmount,
+            surchargeAmount,
+            cancellationToken);
+        GarantirEstoque(sale);
+        return await PersistirVendaAsync(sale, cancellationToken: cancellationToken);
+    }
+
+    public async Task<Domain.Entities.Sale> PrepararVendaAsync(
+        IReadOnlyList<CartItemDto> cartItems,
+        IReadOnlyList<PaymentDraftDto> payments,
+        decimal discountAmount,
+        decimal surchargeAmount,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_session.IsAuthenticated || _session.CurrentTerminal is null)
+            throw new DomainException("Sessão inválida.");
+        if (!_session.HasOpenCashRegister)
+            throw new DomainException("Abra o caixa antes de vender.");
+        if (cartItems.Count == 0)
+            throw new DomainException("Carrinho vazio.");
+        if (payments.Count == 0)
+            throw new DomainException("Informe ao menos uma forma de pagamento.");
+
+        var store = _session.CurrentStore ?? throw new DomainException("Loja do terminal não encontrada.");
         var ticket = await _tickets.NextAsync(_session.CurrentTerminal.Id, cancellationToken);
         var sale = Domain.Entities.Sale.Create(
             _session.OpenCashRegister!.Id,
             _session.CurrentTerminal.Id,
+            store.Id,
             _session.CurrentUser!.Id,
             ticket);
 
@@ -985,6 +1074,28 @@ public sealed class SaleService
         }
 
         sale.Complete();
+        return sale;
+    }
+
+    public void GarantirEstoque(Domain.Entities.Sale sale)
+    {
+        foreach (var grupo in sale.Items.GroupBy(item => item.ProductId))
+        {
+            var quantidade = grupo.Sum(item => item.Quantity);
+            var nome = grupo.First().ProductName;
+            var product = _db.Products.FirstOrDefault(p => p.Id == grupo.Key)
+                ?? throw new DomainException($"Produto {nome} não encontrado.");
+            if (product.StockQuantity < quantidade)
+                throw new DomainException($"Estoque insuficiente para {product.Name}.");
+        }
+    }
+
+    public async Task<SaleSummaryDto> PersistirVendaAsync(
+        Domain.Entities.Sale sale,
+        Domain.Entities.DocumentoFiscal? documento = null,
+        CancellationToken cancellationToken = default)
+    {
+        GarantirEstoque(sale);
 
         foreach (var item in sale.Items)
         {
@@ -995,11 +1106,18 @@ public sealed class SaleService
                 -item.Quantity,
                 $"Venda {sale.TicketNumber}",
                 sale.Id,
-                _session.CurrentUser.Id);
+                _session.CurrentUser!.Id);
             _db.Add(movement);
+            SyncOutbox.Enqueue(_db, SyncAggregateType.StockMovement, movement.Id, SyncOperationKind.Upsert);
         }
 
         _db.Add(sale);
+        SyncOutbox.Enqueue(_db, SyncAggregateType.Sale, sale.Id, SyncOperationKind.Upsert);
+        if (documento is not null)
+        {
+            documento.VincularVenda(sale.Id);
+            _db.Add(documento);
+        }
 
         await _audit.LogAsync(
             "SALE_COMPLETE",
@@ -1010,6 +1128,14 @@ public sealed class SaleService
 
         await _db.SaveChangesAsync(cancellationToken);
         return MapSale(sale);
+    }
+
+    public void EnsureCanCancel(string? authorizerUsername, string? authorizerPin)
+    {
+        if (!_session.IsAuthenticated)
+            throw new DomainException("Sessão inválida.");
+
+        ResolveCanceller(authorizerUsername, authorizerPin);
     }
 
     public async Task CancelSaleAsync(CancelSaleRequest request, CancellationToken cancellationToken = default)
@@ -1044,7 +1170,10 @@ public sealed class SaleService
                 sale.Id,
                 canceller.Id);
             _db.Add(movement);
+            SyncOutbox.Enqueue(_db, SyncAggregateType.StockMovement, movement.Id, SyncOperationKind.Upsert);
         }
+
+        SyncOutbox.Enqueue(_db, SyncAggregateType.Sale, sale.Id, SyncOperationKind.Upsert);
 
         await _audit.LogAsync(
             "SALE_CANCEL",
@@ -1104,6 +1233,9 @@ public sealed class SaleService
 
         var query = _db.Sales.AsQueryable();
 
+        if (filter.CashRegisterId.HasValue && filter.CashRegisterId.Value != Guid.Empty)
+            query = query.Where(s => s.CashRegisterId == filter.CashRegisterId.Value);
+
         if (filter.FromUtc.HasValue)
             query = query.Where(s => s.SoldAt >= filter.FromUtc.Value);
 
@@ -1129,13 +1261,24 @@ public sealed class SaleService
             query = query.Where(s => s.TicketNumber.ToLower().Contains(term));
         }
 
+        if (filter.SemNfce)
+        {
+            query = query.Where(s => !_db.DocumentosFiscais.Any(d => d.SaleId == s.Id && d.DeletedAt == null));
+        }
+        else if (filter.NfceStatus.HasValue)
+        {
+            var nfceStatus = filter.NfceStatus.Value;
+            query = query.Where(s => _db.DocumentosFiscais.Any(d =>
+                d.SaleId == s.Id && d.DeletedAt == null && d.Status == nfceStatus));
+        }
+
         var sales = query.OrderByDescending(s => s.SoldAt).Take(500).ToList();
 
         if (!string.IsNullOrWhiteSpace(filter.PaymentDescription))
         {
             var description = filter.PaymentDescription.Trim();
             var matchingSaleIds = _db.Payments
-                .Where(p => p.Descricao == description && p.Status == PaymentStatus.Confirmed)
+                .Where(p => p.Descricao == description)
                 .Select(p => p.SaleId)
                 .Distinct()
                 .ToHashSet();
@@ -1143,7 +1286,17 @@ public sealed class SaleService
             sales = sales.Where(s => matchingSaleIds.Contains(s.Id)).ToList();
         }
 
-        return Task.FromResult<IReadOnlyList<SaleHistoryItemDto>>(sales.Select(MapHistoryItem).ToList());
+        var saleIds = sales.Select(s => s.Id).ToList();
+        var documentos = saleIds.Count == 0
+            ? new Dictionary<Guid, Domain.Entities.DocumentoFiscal>()
+            : _db.DocumentosFiscais
+                .Where(d => d.SaleId != null && d.DeletedAt == null && saleIds.Contains(d.SaleId.Value))
+                .ToList()
+                .GroupBy(d => d.SaleId!.Value)
+                .ToDictionary(g => g.Key, g => g.OrderByDescending(d => d.EmitidoEm).First());
+
+        return Task.FromResult<IReadOnlyList<SaleHistoryItemDto>>(
+            sales.Select(sale => MapHistoryItem(sale, documentos.GetValueOrDefault(sale.Id))).ToList());
     }
 
     public Task<SaleHistoryTotalsDto> GetHistoryTotalsAsync(
@@ -1228,7 +1381,7 @@ public sealed class SaleService
         return Task.FromResult<IReadOnlyList<string>>(fromCatalog.Concat(extras).ToList());
     }
 
-    private SaleHistoryItemDto MapHistoryItem(Domain.Entities.Sale sale)
+    private SaleHistoryItemDto MapHistoryItem(Domain.Entities.Sale sale, Domain.Entities.DocumentoFiscal? documento = null)
     {
         var operatorName = _db.Users.FirstOrDefault(u => u.Id == sale.OperatorId)?.Name ?? "—";
         var terminalCode = _db.Terminals.FirstOrDefault(t => t.Id == sale.TerminalId)?.Code ?? "—";
@@ -1237,10 +1390,10 @@ public sealed class SaleService
             items = sale.Items.ToList();
 
         var payments = _db.Payments
-            .Where(p => p.SaleId == sale.Id && p.Status != PaymentStatus.Cancelled)
+            .Where(p => p.SaleId == sale.Id)
             .ToList();
         if (payments.Count == 0 && sale.Payments.Count > 0)
-            payments = sale.Payments.Where(p => p.Status != PaymentStatus.Cancelled).ToList();
+            payments = sale.Payments.ToList();
 
         var paymentSummary = payments.Count == 0
             ? "—"
@@ -1264,12 +1417,30 @@ public sealed class SaleService
             sale.TerminalId,
             items.Count,
             paymentSummary,
-            sale.ChangeAmount,
+            payments.Sum(p => p.ChangeAmount),
             sale.CancellationReason,
             sale.CancelledByOperatorId is null
                 ? null
                 : _db.Users.FirstOrDefault(u => u.Id == sale.CancelledByOperatorId)?.Name,
-            sale.CancelledAt);
+            sale.CancelledAt,
+            documento is not null,
+            RotuloNfce(documento),
+            documento?.Serie,
+            documento?.Numero,
+            documento?.Chave,
+            documento?.ProtocoloCancelamento ?? documento?.Protocolo,
+            documento?.CStat,
+            documento?.Motivo,
+            documento is { Status: StatusDocumentoFiscal.Contingencia, Protocolo: null }
+                && sale.Status == SaleStatus.Completed
+                && !string.IsNullOrWhiteSpace(documento.Xml),
+            !string.IsNullOrWhiteSpace(documento?.Xml),
+            documento is { Status: StatusDocumentoFiscal.Autorizada }
+                && sale.Status == SaleStatus.Completed
+                && !string.IsNullOrWhiteSpace(documento.Chave)
+                && !string.IsNullOrWhiteSpace(documento.Protocolo),
+            documento is { Status: StatusDocumentoFiscal.Contingencia }
+                && sale.Status == SaleStatus.Completed);
     }
 
     private static string StatusLabel(SaleStatus status) => status switch
@@ -1279,6 +1450,23 @@ public sealed class SaleService
         SaleStatus.Cancelled => "Cancelada",
         _ => status.ToString()
     };
+
+    private static string RotuloNfce(Domain.Entities.DocumentoFiscal? documento)
+    {
+        if (documento is null)
+            return "—";
+
+        var status = documento.Status switch
+        {
+            StatusDocumentoFiscal.Autorizada => "Autorizada",
+            StatusDocumentoFiscal.Contingencia => "Contingência",
+            StatusDocumentoFiscal.Rejeitada => "Rejeitada",
+            StatusDocumentoFiscal.Cancelada => "Cancelada",
+            _ => documento.Status.ToString()
+        };
+
+        return $"{status} {documento.Numero}";
+    }
 
     private SaleSummaryDto MapSale(Domain.Entities.Sale sale)
     {
@@ -1481,6 +1669,8 @@ public static class ApplicationServiceCollectionExtensions
         services.AddSingleton<CatalogService>();
         services.AddSingleton<CashRegisterService>();
         services.AddSingleton<SaleService>();
+        services.AddSingleton<NfceService>();
+        services.AddSingleton<ConfiguracaoService>();
         services.AddSingleton<UserService>();
         services.AddSingleton<TicketService>();
         services.AddSingleton<IAuditService, AuditService>();

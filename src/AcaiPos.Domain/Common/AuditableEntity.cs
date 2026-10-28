@@ -25,6 +25,14 @@ public abstract class AuditableEntity : Entity
     {
         SyncStatus = SyncStatus.Synced;
     }
+
+    protected void RestaurarTrilha(DateTime createdAt, DateTime updatedAt, DateTime? deletedAt, SyncStatus syncStatus)
+    {
+        CreatedAt = createdAt;
+        UpdatedAt = updatedAt;
+        DeletedAt = deletedAt;
+        SyncStatus = syncStatus;
+    }
 }
 
 public enum SyncStatus

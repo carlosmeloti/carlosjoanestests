@@ -6,6 +6,8 @@ using AcaiPos.Application.Abstractions;
 using AcaiPos.Application.Models;
 using AcaiPos.Application.Services;
 using AcaiPos.Domain.Common;
+using System.Windows.Media.Imaging;
+using AcaiPos.Desktop.Printing;
 using AcaiPos.Domain.Enums;
 
 namespace AcaiPos.Desktop.ViewModels;
@@ -21,6 +23,23 @@ public sealed class PaymentLineViewModel : ObservableObject
     public decimal Amount { get; init; }
     public decimal? AmountReceived { get; init; }
     public string AmountLabel => Amount.ToString("C");
+}
+
+/// <summary>
+/// Botão de categoria na tela de venda.
+/// </summary>
+public sealed class CategoryChipViewModel : ObservableObject
+{
+    public Guid Id { get; init; }
+    public string Name { get; init; } = string.Empty;
+
+    private bool _isSelected;
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set => SetProperty(ref _isSelected, value);
+    }
 }
 
 /// <summary>
@@ -133,6 +152,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly SaleService _saleService;
     private readonly TicketService _ticketService;
     private readonly UserService _userService;
+    private readonly NfceService _nfceService;
     private readonly ICurrentSession _session;
 
     private bool _isAuthenticated;
@@ -145,6 +165,11 @@ public sealed class MainViewModel : ObservableObject
     private string _connectionStatus = "OFFLINE-LOCAL";
     private string _clockText = DateTime.Now.ToString("HH:mm");
     private string _searchText = string.Empty;
+    private int _productSearchGeneration;
+    private bool _suppressSearchSchedule;
+    private bool _suggestionsDismissed;
+    private bool _suggestionsOpen;
+    private int _suggestionIndex = -1;
     private Guid? _selectedCategoryId;
     private decimal _openingAmount = 100m;
     private decimal _countedAmount;
@@ -180,6 +205,11 @@ public sealed class MainViewModel : ObservableObject
     private bool _canManageCatalog;
     private bool _canManageUsers;
     private bool _isNavCollapsed;
+    private bool _emitirCupomFiscal;
+    private string _cpfConsumidor = string.Empty;
+    private bool _nfceEnvioEmAndamento;
+    private string _nfceEnvioMensagem = "Comunicando com a SEFAZ";
+    private BitmapImage? _ticketQrImage;
 
     /// <summary>
     /// Monta as telas filhas, os comandos e o relógio da barra de status.
@@ -191,7 +221,10 @@ public sealed class MainViewModel : ObservableObject
         SaleService saleService,
         TicketService ticketService,
         UserService userService,
-        ICurrentSession session)
+        NfceService nfceService,
+        ConfiguracaoService configuracaoService,
+        ICurrentSession session,
+        ICashMovementPrinter cashMovementPrinter)
     {
         _authService = authService;
         _catalogService = catalogService;
@@ -199,6 +232,7 @@ public sealed class MainViewModel : ObservableObject
         _saleService = saleService;
         _ticketService = ticketService;
         _userService = userService;
+        _nfceService = nfceService;
         _session = session;
 
         Catalog = new CatalogManagementViewModel(
@@ -210,8 +244,18 @@ public sealed class MainViewModel : ObservableObject
             userService,
             msg => StatusMessage = msg);
 
+        Fiscal = new FiscalConfigViewModel(
+            nfceService,
+            msg => StatusMessage = msg);
+
+        Configuracoes = new ConfiguracoesViewModel(
+            configuracaoService,
+            msg => StatusMessage = msg);
+
         History = new SalesHistoryViewModel(
             saleService,
+            nfceService,
+            cashRegisterService,
             msg => StatusMessage = msg,
             async id => await ShowTicketAsync(id, isReprint: true),
             async id =>
@@ -220,8 +264,16 @@ public sealed class MainViewModel : ObservableObject
                 await PrintCurrentTicketAsync();
             });
 
+        NfceGestao = new NfceGestaoViewModel(
+            nfceService,
+            saleService,
+            session,
+            msg => StatusMessage = msg);
+
         CashSession = new CashSessionViewModel(
             cashRegisterService,
+            cashMovementPrinter,
+            session,
             msg => StatusMessage = msg);
 
         LoginCommand = new RelayCommand(async _ => await LoginAsync(), _ => !IsAuthenticated);
@@ -232,6 +284,7 @@ public sealed class MainViewModel : ObservableObject
             ShowCashOpenPanel = true;
         }, _ => IsAuthenticated && !IsCashOpen);
         ConfirmOpenCashCommand = new RelayCommand(async _ => await OpenCashAsync(), _ => IsAuthenticated && !IsCashOpen);
+        CancelOpenCashCommand = new RelayCommand(_ => ShowCashOpenPanel = false);
         CloseCashCommand = new RelayCommand(_ => BeginCloseCash(), _ => IsAuthenticated && IsCashOpen);
         ConfirmCloseCashCommand = new RelayCommand(async _ => await ConfirmCloseCashAsync(), _ => IsCashOpen);
         CancelCloseCashCommand = new RelayCommand(_ => ShowCashClosePanel = false);
@@ -248,8 +301,11 @@ public sealed class MainViewModel : ObservableObject
         CommitQuantityCommand = new RelayCommand(p => CommitQuantity(p as CartLineViewModel));
         CancelQuantityEditCommand = new RelayCommand(p => CancelQuantityEdit(p as CartLineViewModel));
         ClearCartCommand = new RelayCommand(_ => ClearCart(), _ => Cart.Count > 0);
-        SearchCommand = new RelayCommand(async _ => await LoadProductsAsync());
+        SearchCommand = new RelayCommand(async _ => await ReloadProductsNowAsync());
         SearchOrBarcodeCommand = new RelayCommand(async _ => await SearchOrBarcodeAsync());
+        MoveSuggestionCommand = new RelayCommand(MoveSuggestion);
+        DismissSuggestionsCommand = new RelayCommand(_ => DismissSuggestions());
+        AcceptSuggestionCommand = new RelayCommand(async p => await AcceptSuggestionAsync(p as ProductDto), _ => IsCashOpen);
         StartPaymentCommand = new RelayCommand(_ => StartPayment(), _ => IsCashOpen && Cart.Count > 0);
         CancelPaymentCommand = new RelayCommand(_ => CancelPaymentPanel());
         AuthorizeDiscountCommand = new RelayCommand(_ => AuthorizeDiscount());
@@ -269,8 +325,12 @@ public sealed class MainViewModel : ObservableObject
         });
         GoToSaleCommand = new RelayCommand(async _ => await NavigateToSaleAsync(), _ => IsAuthenticated);
         GoToCatalogCommand = new RelayCommand(async _ => await NavigateToCatalogAsync(), _ => IsAuthenticated && CanManageCatalog);
+        GoToFiscalCommand = new RelayCommand(async _ => await NavigateToFiscalAsync(), _ => IsAuthenticated && CanManageCatalog);
+        GoToSettingsCommand = new RelayCommand(async _ => await NavigateToSettingsAsync(), _ => IsAuthenticated && CanManageCatalog);
+        ToggleCupomFiscalCommand = new RelayCommand(_ => EmitirCupomFiscal = !EmitirCupomFiscal);
         GoToUsersCommand = new RelayCommand(async _ => await NavigateToUsersAsync(), _ => IsAuthenticated && CanManageUsers);
         GoToHistoryCommand = new RelayCommand(async _ => await NavigateToHistoryAsync(), _ => IsAuthenticated);
+        GoToNfceCommand = new RelayCommand(async _ => await NavigateToNfceAsync(), _ => IsAuthenticated);
         GoToCashSessionCommand = new RelayCommand(async _ => await NavigateToCashSessionAsync(), _ => IsAuthenticated);
         OpenSupplyCommand = new RelayCommand(async _ => await OpenMovementPanelAsync(CashMovementType.Supply), _ => IsCashOpen);
         OpenWithdrawalCommand = new RelayCommand(async _ => await OpenMovementPanelAsync(CashMovementType.Withdrawal), _ => IsCashOpen);
@@ -300,11 +360,14 @@ public sealed class MainViewModel : ObservableObject
     }
 
     public CatalogManagementViewModel Catalog { get; }
+    public FiscalConfigViewModel Fiscal { get; }
+    public ConfiguracoesViewModel Configuracoes { get; }
     public UserManagementViewModel Users { get; }
     public SalesHistoryViewModel History { get; }
+    public NfceGestaoViewModel NfceGestao { get; }
     public CashSessionViewModel CashSession { get; }
 
-    public ObservableCollection<CategoryDto> Categories { get; } = [];
+    public ObservableCollection<CategoryChipViewModel> Categories { get; } = [];
     public ObservableCollection<ProductDto> Products { get; } = [];
     public ObservableCollection<CartLineViewModel> Cart { get; } = [];
     public ObservableCollection<CashMovementDto> CashMovements { get; } = [];
@@ -316,6 +379,7 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand LogoutCommand { get; }
     public RelayCommand OpenCashCommand { get; }
     public RelayCommand ConfirmOpenCashCommand { get; }
+    public RelayCommand CancelOpenCashCommand { get; }
     public RelayCommand CloseCashCommand { get; }
     public RelayCommand ConfirmCloseCashCommand { get; }
     public RelayCommand CancelCloseCashCommand { get; }
@@ -330,6 +394,9 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand ClearCartCommand { get; }
     public RelayCommand SearchCommand { get; }
     public RelayCommand SearchOrBarcodeCommand { get; }
+    public RelayCommand MoveSuggestionCommand { get; }
+    public RelayCommand DismissSuggestionsCommand { get; }
+    public RelayCommand AcceptSuggestionCommand { get; }
     public RelayCommand StartPaymentCommand { get; }
     public RelayCommand CancelPaymentCommand { get; }
     public RelayCommand AuthorizeDiscountCommand { get; }
@@ -345,8 +412,12 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand BackspacePinCommand { get; }
     public RelayCommand GoToSaleCommand { get; }
     public RelayCommand GoToCatalogCommand { get; }
+    public RelayCommand GoToFiscalCommand { get; }
+    public RelayCommand GoToSettingsCommand { get; }
+    public RelayCommand ToggleCupomFiscalCommand { get; }
     public RelayCommand GoToUsersCommand { get; }
     public RelayCommand GoToHistoryCommand { get; }
+    public RelayCommand GoToNfceCommand { get; }
     public RelayCommand GoToCashSessionCommand { get; }
     public RelayCommand OpenSupplyCommand { get; }
     public RelayCommand OpenWithdrawalCommand { get; }
@@ -376,8 +447,11 @@ public sealed class MainViewModel : ObservableObject
             CloseCashCommand.RaiseCanExecuteChanged();
             GoToSaleCommand.RaiseCanExecuteChanged();
             GoToCatalogCommand.RaiseCanExecuteChanged();
+            GoToFiscalCommand.RaiseCanExecuteChanged();
+            GoToSettingsCommand.RaiseCanExecuteChanged();
             GoToUsersCommand.RaiseCanExecuteChanged();
             GoToHistoryCommand.RaiseCanExecuteChanged();
+            GoToNfceCommand.RaiseCanExecuteChanged();
             GoToCashSessionCommand.RaiseCanExecuteChanged();
             OpenReprintCommand.RaiseCanExecuteChanged();
             ToggleCashMenuCommand.RaiseCanExecuteChanged();
@@ -401,6 +475,7 @@ public sealed class MainViewModel : ObservableObject
             OpenWithdrawalCommand.RaiseCanExecuteChanged();
             ConfirmCashMovementCommand.RaiseCanExecuteChanged();
             AddProductCommand.RaiseCanExecuteChanged();
+            AcceptSuggestionCommand.RaiseCanExecuteChanged();
             BeginEditQuantityCommand.RaiseCanExecuteChanged();
             StartPaymentCommand.RaiseCanExecuteChanged();
             RaisePropertyChanged(nameof(CashMovementButtonsVisibility));
@@ -412,13 +487,19 @@ public sealed class MainViewModel : ObservableObject
     public string CashStatusText => IsCashOpen ? "CAIXA ABERTO" : "CAIXA FECHADO";
     public string SaleScreenVisibility => CurrentScreen == "Sale" ? "Visible" : "Collapsed";
     public string CatalogScreenVisibility => CurrentScreen == "Catalog" ? "Visible" : "Collapsed";
+    public string FiscalScreenVisibility => CurrentScreen == "Fiscal" ? "Visible" : "Collapsed";
+    public string SettingsScreenVisibility => CurrentScreen == "Settings" ? "Visible" : "Collapsed";
     public string UsersScreenVisibility => CurrentScreen == "Users" ? "Visible" : "Collapsed";
     public string HistoryScreenVisibility => CurrentScreen == "History" ? "Visible" : "Collapsed";
+    public string NfceScreenVisibility => CurrentScreen == "Nfce" ? "Visible" : "Collapsed";
     public string CashSessionScreenVisibility => CurrentScreen == "CashSession" ? "Visible" : "Collapsed";
     public bool IsSaleScreen => CurrentScreen == "Sale";
     public bool IsHistoryScreen => CurrentScreen == "History";
+    public bool IsNfceScreen => CurrentScreen == "Nfce";
     public bool IsCashSessionScreen => CurrentScreen == "CashSession";
     public bool IsCatalogScreen => CurrentScreen == "Catalog";
+    public bool IsFiscalScreen => CurrentScreen == "Fiscal";
+    public bool IsSettingsScreen => CurrentScreen == "Settings";
     public bool IsUsersScreen => CurrentScreen == "Users";
 
     public string CurrentScreen
@@ -426,17 +507,27 @@ public sealed class MainViewModel : ObservableObject
         get => _currentScreen;
         set
         {
-            ShowCashMenu = false;
-            SetProperty(ref _currentScreen, value);
+        ShowCashMenu = false;
+        if (!string.Equals(value, "CashSession", StringComparison.Ordinal))
+            CashSession.ClosePreview();
+        if (!string.Equals(value, "Nfce", StringComparison.Ordinal))
+            NfceGestao.ClosePreview();
+        SetProperty(ref _currentScreen, value);
             RaisePropertyChanged(nameof(SaleScreenVisibility));
             RaisePropertyChanged(nameof(CatalogScreenVisibility));
+            RaisePropertyChanged(nameof(FiscalScreenVisibility));
+            RaisePropertyChanged(nameof(SettingsScreenVisibility));
             RaisePropertyChanged(nameof(UsersScreenVisibility));
             RaisePropertyChanged(nameof(HistoryScreenVisibility));
+            RaisePropertyChanged(nameof(NfceScreenVisibility));
             RaisePropertyChanged(nameof(CashSessionScreenVisibility));
             RaisePropertyChanged(nameof(IsSaleScreen));
             RaisePropertyChanged(nameof(IsHistoryScreen));
+            RaisePropertyChanged(nameof(IsNfceScreen));
             RaisePropertyChanged(nameof(IsCashSessionScreen));
             RaisePropertyChanged(nameof(IsCatalogScreen));
+            RaisePropertyChanged(nameof(IsFiscalScreen));
+            RaisePropertyChanged(nameof(IsSettingsScreen));
             RaisePropertyChanged(nameof(IsUsersScreen));
         }
     }
@@ -448,6 +539,8 @@ public sealed class MainViewModel : ObservableObject
         {
             SetProperty(ref _canManageCatalog, value);
             GoToCatalogCommand.RaiseCanExecuteChanged();
+            GoToFiscalCommand.RaiseCanExecuteChanged();
+            GoToSettingsCommand.RaiseCanExecuteChanged();
             RaisePropertyChanged(nameof(CatalogButtonVisibility));
             RaisePropertyChanged(nameof(AdminSectionVisibility));
         }
@@ -464,6 +557,44 @@ public sealed class MainViewModel : ObservableObject
             RaisePropertyChanged(nameof(AdminSectionVisibility));
         }
     }
+
+    public bool EmitirCupomFiscal
+    {
+        get => _emitirCupomFiscal;
+        set
+        {
+            SetProperty(ref _emitirCupomFiscal, value);
+            RaisePropertyChanged(nameof(CupomFiscalLabel));
+            RaisePropertyChanged(nameof(CpfConsumidorVisibility));
+        }
+    }
+
+    public string CpfConsumidor
+    {
+        get => _cpfConsumidor;
+        set => SetProperty(ref _cpfConsumidor, value);
+    }
+
+    public string CupomFiscalLabel => EmitirCupomFiscal ? "Cupom fiscal: LIGADO" : "Cupom fiscal: DESLIGADO";
+    public string CpfConsumidorVisibility => EmitirCupomFiscal ? "Visible" : "Collapsed";
+    public string NfceEnvioVisivel => _nfceEnvioEmAndamento ? "Visible" : "Collapsed";
+
+    public string NfceEnvioMensagem
+    {
+        get => _nfceEnvioMensagem;
+        private set => SetProperty(ref _nfceEnvioMensagem, value);
+    }
+    public BitmapImage? TicketQrImage
+    {
+        get => _ticketQrImage;
+        private set
+        {
+            SetProperty(ref _ticketQrImage, value);
+            RaisePropertyChanged(nameof(TicketQrVisibility));
+        }
+    }
+
+    public string TicketQrVisibility => TicketQrImage is null ? "Collapsed" : "Visible";
 
     public string CatalogButtonVisibility => CanManageCatalog ? "Visible" : "Collapsed";
     public string UsersButtonVisibility => CanManageUsers ? "Visible" : "Collapsed";
@@ -597,8 +728,42 @@ public sealed class MainViewModel : ObservableObject
     public string SearchText
     {
         get => _searchText;
-        set => SetProperty(ref _searchText, value);
+        set
+        {
+            if (_searchText == value)
+                return;
+
+            _searchText = value;
+            RaisePropertyChanged();
+            _suggestionsDismissed = false;
+            SuggestionIndex = -1;
+            if (!_suppressSearchSchedule)
+                ScheduleProductSearch();
+
+            if (_suppressSearchSchedule || value.Trim().Length < 3)
+                SyncSuggestionsOpen();
+        }
     }
+
+    /// <summary>
+    /// Lista de sugestões visível. Abre a partir do terceiro caractere, sem destacar item.
+    /// </summary>
+    public bool SuggestionsOpen => _suggestionsOpen;
+
+    /// <summary>
+    /// Índice do item destacado na lista. -1 significa que Enter não lança sugestão.
+    /// </summary>
+    public int SuggestionIndex
+    {
+        get => _suggestionIndex;
+        private set => SetProperty(ref _suggestionIndex, value);
+    }
+
+    public string SuggestionsListVisibility =>
+        _suggestionsOpen && Products.Count > 0 ? "Visible" : "Collapsed";
+
+    public string SuggestionsEmptyVisibility =>
+        _suggestionsOpen && Products.Count == 0 ? "Visible" : "Collapsed";
 
     public decimal OpeningAmount
     {
@@ -905,9 +1070,10 @@ public sealed class MainViewModel : ObservableObject
             CurrentScreen = "Sale";
             StatusMessage = IsCashOpen
                 ? "Caixa já estava aberto. Pronto para vender."
-                : "Login ok. Abra o caixa para iniciar as vendas.";
-            ShowCashOpenPanel = !IsCashOpen;
+                : "Login ok. Caixa fechado. A abertura é opcional; vendas exigem caixa aberto.";
+            ShowCashOpenPanel = false;
             await LoadCatalogAsync();
+            await TransmitirContingenciasAsync();
         }
         catch (DomainException ex)
         {
@@ -982,6 +1148,57 @@ public sealed class MainViewModel : ObservableObject
         StatusMessage = "Cadastro de produtos e categorias.";
     }
 
+    private async Task NavigateToFiscalAsync()
+    {
+        if (!CanManageCatalog)
+        {
+            StatusMessage = "Sem permissão para a configuração fiscal.";
+            return;
+        }
+
+        CurrentScreen = "Fiscal";
+        ShowCashOpenPanel = false;
+        ShowCashClosePanel = false;
+        ShowCashMovementPanel = false;
+        PaymentPanelVisibility = "Collapsed";
+        await Fiscal.LoadAsync();
+        StatusMessage = "Configuração fiscal.";
+    }
+
+    private async Task NavigateToSettingsAsync()
+    {
+        if (!CanManageCatalog)
+        {
+            StatusMessage = "Sem permissão para as configurações.";
+            return;
+        }
+
+        CurrentScreen = "Settings";
+        ShowCashOpenPanel = false;
+        ShowCashClosePanel = false;
+        ShowCashMovementPanel = false;
+        PaymentPanelVisibility = "Collapsed";
+        await Configuracoes.LoadAsync();
+        StatusMessage = "Configurações.";
+    }
+
+    private async Task TransmitirContingenciasAsync()
+    {
+        try
+        {
+            var resultado = await _nfceService.TransmitirPendentesAsync();
+            if (resultado.Autorizadas > 0 || resultado.Rejeitadas > 0 || resultado.Pendentes > 0)
+                StatusMessage = resultado.Mensagem;
+        }
+        catch (DomainException)
+        {
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Contingências não transmitidas: {ex.Message}";
+        }
+    }
+
     /// <summary>
     /// Abre o cadastro de usuários, se o papel for administrador.
     /// </summary>
@@ -1005,7 +1222,7 @@ public sealed class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Abre o histórico e carrega as vendas de hoje.
+    /// Abre o histórico e carrega as vendas do ciclo atual.
     /// </summary>
     private async Task NavigateToHistoryAsync()
     {
@@ -1018,6 +1235,22 @@ public sealed class MainViewModel : ObservableObject
         PaymentPanelVisibility = "Collapsed";
         await History.InitializeAsync();
         StatusMessage = "Histórico de vendas.";
+    }
+
+    /// <summary>
+    /// Abre a gestão de NFC-e no caixa em operação.
+    /// </summary>
+    private async Task NavigateToNfceAsync()
+    {
+        CurrentScreen = "Nfce";
+        ShowCashOpenPanel = false;
+        ShowCashClosePanel = false;
+        ShowCashMovementPanel = false;
+        ShowTicketPanel = false;
+        ShowReprintPanel = false;
+        PaymentPanelVisibility = "Collapsed";
+        await NfceGestao.InitializeAsync();
+        StatusMessage = NfceGestao.Message;
     }
 
     /// <summary>
@@ -1188,16 +1421,19 @@ public sealed class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Carrega categorias ativas, seleciona "Todos" e lista os produtos vendáveis.
+    /// Carrega categorias ativas. Se houver uma padrão, ela e os produtos dela já vêm selecionados.
     /// </summary>
     private async Task LoadCatalogAsync()
     {
         Categories.Clear();
-        Categories.Add(new CategoryDto(Guid.Empty, "Todos", null, 0));
-        foreach (var category in await _catalogService.GetActiveCategoriesAsync())
-            Categories.Add(category);
+        Categories.Add(new CategoryChipViewModel { Id = Guid.Empty, Name = "Todos" });
+        var categories = await _catalogService.GetActiveCategoriesAsync();
+        foreach (var category in categories)
+            Categories.Add(new CategoryChipViewModel { Id = category.Id, Name = category.Name });
 
-        _selectedCategoryId = null;
+        var padrao = categories.FirstOrDefault(category => category.IsDefault);
+        _selectedCategoryId = padrao is null ? null : padrao.Id;
+        MarcarCategoriaSelecionada();
         await LoadProductsAsync();
         await LoadPaymentMethodsAsync();
     }
@@ -1219,7 +1455,16 @@ public sealed class MainViewModel : ObservableObject
     private async Task SelectCategoryAsync(Guid? categoryId)
     {
         _selectedCategoryId = categoryId is null || categoryId == Guid.Empty ? null : categoryId;
-        await LoadProductsAsync();
+        MarcarCategoriaSelecionada();
+        SuggestionIndex = -1;
+        await ReloadProductsNowAsync();
+    }
+
+    private void MarcarCategoriaSelecionada()
+    {
+        var selecionada = _selectedCategoryId ?? Guid.Empty;
+        foreach (var category in Categories)
+            category.IsSelected = category.Id == selecionada;
     }
 
     /// <summary>
@@ -1227,10 +1472,152 @@ public sealed class MainViewModel : ObservableObject
     /// </summary>
     private async Task LoadProductsAsync()
     {
-        Products.Clear();
         var items = await _catalogService.GetSellableProductsAsync(_selectedCategoryId, SearchText);
+        var selected = _suggestionIndex;
+        Products.Clear();
         foreach (var item in items)
             Products.Add(item);
+
+        if (selected >= Products.Count)
+            SuggestionIndex = -1;
+        else if (_suggestionIndex != selected)
+            SuggestionIndex = selected;
+
+        SyncSuggestionsOpen();
+        if (_suggestionsOpen && _suggestionIndex >= 0)
+            RaisePropertyChanged(nameof(SuggestionIndex));
+    }
+
+    /// <summary>
+    /// Recarrega a grade e cancela uma busca ainda aguardando o intervalo da digitação.
+    /// </summary>
+    private Task ReloadProductsNowAsync()
+    {
+        _productSearchGeneration++;
+        return LoadProductsAsync();
+    }
+
+    /// <summary>
+    /// Espera um instante para não consultar o catálogo a cada tecla.
+    /// </summary>
+    private void ScheduleProductSearch()
+    {
+        var generation = ++_productSearchGeneration;
+        _ = DelayedProductSearchAsync(generation);
+    }
+
+    private async Task DelayedProductSearchAsync(int generation)
+    {
+        await Task.Delay(200);
+        if (generation != _productSearchGeneration)
+            return;
+
+        await LoadProductsAsync();
+    }
+
+    /// <summary>
+    /// Abre a lista a partir do terceiro caractere, salvo quando o operador a dispensou.
+    /// </summary>
+    private void SyncSuggestionsOpen()
+    {
+        var open = !_suggestionsDismissed && SearchText.Trim().Length >= 3;
+        if (_suggestionsOpen != open)
+        {
+            _suggestionsOpen = open;
+            RaisePropertyChanged(nameof(SuggestionsOpen));
+        }
+
+        if (!open)
+            SuggestionIndex = -1;
+
+        RaisePropertyChanged(nameof(SuggestionsListVisibility));
+        RaisePropertyChanged(nameof(SuggestionsEmptyVisibility));
+    }
+
+    /// <summary>
+    /// Move o destaque. Para baixo entra no primeiro item; para cima, no primeiro, tira o destaque.
+    /// </summary>
+    private void MoveSuggestion(object? parameter)
+    {
+        var step = SuggestionStep(parameter);
+        if (step == 0 || SearchText.Trim().Length < 3 || Products.Count == 0)
+            return;
+
+        _suggestionsDismissed = false;
+        if (!_suggestionsOpen)
+        {
+            _suggestionsOpen = true;
+            RaisePropertyChanged(nameof(SuggestionsOpen));
+            RaisePropertyChanged(nameof(SuggestionsListVisibility));
+            RaisePropertyChanged(nameof(SuggestionsEmptyVisibility));
+        }
+
+        var down = step > 0;
+        if (!down && _suggestionIndex < 0)
+            return;
+
+        if (_suggestionIndex < 0)
+        {
+            SuggestionIndex = 0;
+            return;
+        }
+
+        var next = _suggestionIndex + (down ? 1 : -1);
+        if (next < 0)
+            SuggestionIndex = -1;
+        else if (next >= Products.Count)
+            SuggestionIndex = Products.Count - 1;
+        else
+            SuggestionIndex = next;
+    }
+
+    private static int SuggestionStep(object? parameter)
+    {
+        return parameter switch
+        {
+            int value => value,
+            string text when int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) => parsed,
+            _ => 0
+        };
+    }
+
+    /// <summary>
+    /// Fecha a lista e tira o destaque. O texto e o filtro da grade permanecem.
+    /// </summary>
+    private void DismissSuggestions()
+    {
+        if (!_suggestionsOpen)
+            return;
+
+        _suggestionsDismissed = true;
+        SyncSuggestionsOpen();
+    }
+
+    /// <summary>
+    /// Lança o produto da lista e limpa a busca para a próxima leitura.
+    /// </summary>
+    private async Task AcceptSuggestionAsync(ProductDto? product)
+    {
+        if (product is null || !IsCashOpen)
+            return;
+
+        AddProduct(product);
+        await ClearSearchAsync();
+    }
+
+    private async Task ClearSearchAsync()
+    {
+        _suppressSearchSchedule = true;
+        try
+        {
+            SearchText = string.Empty;
+        }
+        finally
+        {
+            _suppressSearchSchedule = false;
+        }
+
+        await ReloadProductsNowAsync();
     }
 
     /// <summary>
@@ -1404,6 +1791,16 @@ public sealed class MainViewModel : ObservableObject
     {
         PaymentLines.Clear();
         DiscountAmount = Math.Min(DiscountAmount, CartTotal);
+        CpfConsumidor = string.Empty;
+        try
+        {
+            EmitirCupomFiscal = _nfceService.EmitirPorPadraoAsync().GetAwaiter().GetResult();
+        }
+        catch (Exception)
+        {
+            EmitirCupomFiscal = false;
+        }
+
         ClosePaymentMethodPanel();
         PaymentPanelVisibility = "Visible";
         RaisePaymentFacts();
@@ -1609,7 +2006,8 @@ public sealed class MainViewModel : ObservableObject
     /// Indica se as formas lançadas fecham o total e o desconto já está liberado.
     /// </summary>
     private bool CanSavePayment() =>
-        PaymentLines.Count > 0
+        !_nfceEnvioEmAndamento
+        && PaymentLines.Count > 0
         && Math.Abs(PayableTotal - PaymentPaid) <= 0.009m
         && IsDiscountClearedForPayment;
 
@@ -1643,6 +2041,10 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
+        var emitirCupom = EmitirCupomFiscal;
+        if (emitirCupom)
+            DefinirEnvioNfce(true, "Preparando a NFC-e");
+
         try
         {
             var cart = Cart.Select(c => new CartItemDto(
@@ -1653,13 +2055,26 @@ public sealed class MainViewModel : ObservableObject
                 c.UnitPrice,
                 c.Subtotal)).ToList();
 
-            var sale = await _saleService.CompleteSaleAsync(
-                cart,
-                payments,
-                DiscountAmount,
-                DiscountAmount > 0 && !_saleService.CurrentUserCanApplyDiscount ? DiscountAuthorizerUsername : null,
-                DiscountAmount > 0 && !_saleService.CurrentUserCanApplyDiscount ? DiscountAuthorizerPin : null,
-                SurchargeAmount);
+            var descontoUsuario = DiscountAmount > 0 && !_saleService.CurrentUserCanApplyDiscount ? DiscountAuthorizerUsername : null;
+            var descontoPin = DiscountAmount > 0 && !_saleService.CurrentUserCanApplyDiscount ? DiscountAuthorizerPin : null;
+            var progresso = new Progress<string>(mensagem => NfceEnvioMensagem = mensagem);
+            var sale = emitirCupom
+                ? await _nfceService.ConcluirVendaAsync(
+                    cart,
+                    payments,
+                    DiscountAmount,
+                    descontoUsuario,
+                    descontoPin,
+                    SurchargeAmount,
+                    CpfConsumidor,
+                    progresso)
+                : await _saleService.CompleteSaleAsync(
+                    cart,
+                    payments,
+                    DiscountAmount,
+                    descontoUsuario,
+                    descontoPin,
+                    SurchargeAmount);
 
             LastTicketInfo =
                 $"Ticket {sale.TicketNumber} · {sale.Total:C}" +
@@ -1670,33 +2085,60 @@ public sealed class MainViewModel : ObservableObject
             DiscountAmount = 0;
             SurchargeAmount = 0;
             DiscountAuthorizerPin = string.Empty;
+            CpfConsumidor = string.Empty;
             RefreshCartTotals();
             ClosePaymentMethodPanel();
             PaymentPanelVisibility = "Collapsed";
             StatusMessage = $"Venda concluída: {LastTicketInfo}";
-            await LoadProductsAsync();
+            await ReloadProductsNowAsync();
             await ShowTicketAsync(sale.Id, isReprint: false);
+            if (emitirCupom)
+            {
+                NfceEnvioMensagem = "Imprimindo o cupom";
+                await PrintCurrentTicketAsync();
+            }
         }
         catch (DomainException ex)
         {
+            DefinirEnvioNfce(false);
             StatusMessage = ex.Message;
             MessageBox.Show(ex.Message, "AcaiPos", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         catch (Exception ex)
         {
+            DefinirEnvioNfce(false);
             StatusMessage = ex.Message;
             MessageBox.Show(ex.Message, "AcaiPos", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+        finally
+        {
+            DefinirEnvioNfce(false);
+        }
+    }
+
+    private void DefinirEnvioNfce(bool emAndamento, string? mensagem = null)
+    {
+        _nfceEnvioEmAndamento = emAndamento;
+        if (mensagem is not null)
+            NfceEnvioMensagem = mensagem;
+        RaisePropertyChanged(nameof(NfceEnvioVisivel));
+        SavePaymentCommand.RaiseCanExecuteChanged();
     }
 
     /// <summary>
-    /// Se o texto for um código de barras, inclui o produto; caso contrário, filtra a lista.
+    /// Lança o item destacado. Sem destaque, um código de barras exato entra no carrinho; o resto só filtra a grade.
     /// </summary>
     private async Task SearchOrBarcodeAsync()
     {
+        if (_suggestionsOpen && _suggestionIndex >= 0 && _suggestionIndex < Products.Count)
+        {
+            await AcceptSuggestionAsync(Products[_suggestionIndex]);
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(SearchText))
         {
-            await LoadProductsAsync();
+            await ReloadProductsNowAsync();
             return;
         }
 
@@ -1704,12 +2146,11 @@ public sealed class MainViewModel : ObservableObject
         if (byBarcode is not null)
         {
             AddProduct(byBarcode);
-            SearchText = string.Empty;
-            await LoadProductsAsync();
+            await ClearSearchAsync();
             return;
         }
 
-        await LoadProductsAsync();
+        await ReloadProductsNowAsync();
     }
 
     /// <summary>
@@ -1759,8 +2200,10 @@ public sealed class MainViewModel : ObservableObject
     {
         var ticket = await _ticketService.GetTicketAsync(saleId, isReprint);
         _currentTicketSaleId = ticket.SaleId;
-        TicketPanelTitle = isReprint ? $"Reimpressão · {ticket.TicketNumber}" : $"Ticket · {ticket.TicketNumber}";
+        var titulo = ticket.TemCupomFiscal ? "NFC-e" : "Ticket";
+        TicketPanelTitle = isReprint ? $"Reimpressão · {titulo} {ticket.TicketNumber}" : $"{titulo} · {ticket.TicketNumber}";
         TicketPreviewText = _ticketService.Format(ticket);
+        TicketQrImage = string.IsNullOrWhiteSpace(ticket.QrCode) ? null : QrCodeImagem.ParaTela(ticket.QrCode);
         ShowReprintPanel = false;
         ShowTicketPanel = true;
         PrintTicketCommand.RaiseCanExecuteChanged();
@@ -1775,6 +2218,7 @@ public sealed class MainViewModel : ObservableObject
         ShowTicketPanel = false;
         _currentTicketSaleId = null;
         TicketPreviewText = string.Empty;
+        TicketQrImage = null;
         PrintTicketCommand.RaiseCanExecuteChanged();
     }
 

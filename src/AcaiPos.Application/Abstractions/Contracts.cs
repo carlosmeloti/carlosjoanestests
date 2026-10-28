@@ -20,11 +20,17 @@ public interface IPosDbContext
     IQueryable<SaleItem> SaleItems { get; }
     IQueryable<Payment> Payments { get; }
     IQueryable<FormaPagamento> FormasPagamento { get; }
+    IQueryable<ConfiguracaoFiscal> ConfiguracoesFiscais { get; }
+    IQueryable<Configuracao> Configuracoes { get; }
+    IQueryable<DocumentoFiscal> DocumentosFiscais { get; }
     IQueryable<StockMovement> StockMovements { get; }
     IQueryable<AuditEntry> AuditEntries { get; }
+    IQueryable<SyncOperation> SyncOperations { get; }
+    IQueryable<SyncError> SyncErrors { get; }
 
     void Add<T>(T entity) where T : class;
     void Remove<T>(T entity) where T : class;
+    void DescartarInclusoesPendentes();
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
 
@@ -77,4 +83,20 @@ public interface ITicketFormatter
 public interface ITicketPrinter
 {
     Task PrintAsync(TicketDto ticket, CancellationToken cancellationToken = default);
+}
+
+public interface IProtecaoCertificado
+{
+    string Proteger(string senha);
+    string Revelar(string senhaProtegida);
+}
+
+public interface IEmissorNfce
+{
+    Task<ResultadoEmissaoNfce> ConsultarStatusAsync(CredenciaisEmissao credenciais, CancellationToken cancellationToken = default);
+    Task<ResultadoEmissaoNfce> EmitirAsync(PedidoEmissaoNfce pedido, CancellationToken cancellationToken = default);
+    Task<ResultadoEmissaoNfce> EmitirContingenciaAsync(PedidoEmissaoNfce pedido, CancellationToken cancellationToken = default);
+    Task<ResultadoEmissaoNfce> TransmitirAsync(CredenciaisEmissao credenciais, string xml, CancellationToken cancellationToken = default);
+    Task<ResultadoCancelamentoNfce> CancelarAsync(CancelamentoNfce pedido, CancellationToken cancellationToken = default);
+    void ValidarIbsCbs(DateTimeOffset emissao, string ibsCbsCst, string cClassTrib);
 }

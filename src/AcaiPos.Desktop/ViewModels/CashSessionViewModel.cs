@@ -1,7 +1,12 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.IO;
+using System.Windows.Media.Imaging;
+using AcaiPos.Application.Abstractions;
 using AcaiPos.Application.Models;
 using AcaiPos.Application.Services;
+using AcaiPos.Application.Tickets;
+using AcaiPos.Desktop.Printing;
 using AcaiPos.Domain.Common;
 using AcaiPos.Domain.Enums;
 
@@ -36,6 +41,8 @@ public sealed class PaymentTotalRowViewModel
 public sealed class CashSessionViewModel : ObservableObject
 {
     private readonly CashRegisterService _cashRegisterService;
+    private readonly ICashMovementPrinter _printer;
+    private readonly ICurrentSession _session;
     private readonly Action<string>? _notify;
     private readonly List<CashSessionListItemDto> _allSessions = [];
     private bool _suppressSelection;
@@ -64,13 +71,24 @@ public sealed class CashSessionViewModel : ObservableObject
     private decimal _supplyAmount;
     private string _supplyReason = "Reforço de troco";
     private string _deleteConfirmText = string.Empty;
+    private string _thermalPreviewText = string.Empty;
+    private bool _showThermalPreview;
+    private bool _showA4Preview;
+    private CashMovementReport? _previewReport;
+
 
     /// <summary>
-    /// Liga os comandos de sangria, suprimento, exclusão e navegação de período.
+    /// Liga os comandos de sangria, suprimento, exclusão, impressão e navegação de período.
     /// </summary>
-    public CashSessionViewModel(CashRegisterService cashRegisterService, Action<string>? notify = null)
+    public CashSessionViewModel(
+        CashRegisterService cashRegisterService,
+        ICashMovementPrinter printer,
+        ICurrentSession session,
+        Action<string>? notify = null)
     {
         _cashRegisterService = cashRegisterService;
+        _printer = printer;
+        _session = session;
         _notify = notify;
 
         BeginWithdrawalCommand = new RelayCommand(_ => BeginWithdrawal(), _ => CanEditMovements);
@@ -84,6 +102,11 @@ public sealed class CashSessionViewModel : ObservableObject
         CancelDeleteCommand = new RelayCommand(_ => CloseDeleteConfirm());
         CurrentMonthCommand = new RelayCommand(_ => ApplyCurrentMonth());
         GoToOpenSessionCommand = new RelayCommand(_ => GoToOpenSession(), _ => _allSessions.Any(s => s.IsOpen));
+        PrintThermalCommand = new RelayCommand(async _ => await OpenThermalPreviewAsync(), _ => HasSession);
+        PrintA4Command = new RelayCommand(async _ => await OpenA4PreviewAsync(), _ => HasSession);
+        ClosePreviewCommand = new RelayCommand(_ => ClosePreview());
+        ConfirmThermalPrintCommand = new RelayCommand(async _ => await ConfirmThermalPrintAsync(), _ => _previewReport is not null);
+        ConfirmA4PrintCommand = new RelayCommand(async _ => await ConfirmA4PrintAsync(), _ => _previewReport is not null);
     }
 
     public ObservableCollection<CashSessionListItemDto> Sessions { get; } = [];
@@ -102,6 +125,13 @@ public sealed class CashSessionViewModel : ObservableObject
     public RelayCommand CancelDeleteCommand { get; }
     public RelayCommand CurrentMonthCommand { get; }
     public RelayCommand GoToOpenSessionCommand { get; }
+    public RelayCommand PrintThermalCommand { get; }
+    public RelayCommand PrintA4Command { get; }
+    public RelayCommand ClosePreviewCommand { get; }
+    public RelayCommand ConfirmThermalPrintCommand { get; }
+    public RelayCommand ConfirmA4PrintCommand { get; }
+
+    public ObservableCollection<BitmapImage> A4PreviewPages { get; } = [];
 
     public DateTime FromDate
     {
@@ -207,7 +237,33 @@ public sealed class CashSessionViewModel : ObservableObject
     public bool HasSession
     {
         get => _hasSession;
-        private set => SetProperty(ref _hasSession, value);
+        private set
+        {
+            if (_hasSession == value)
+                return;
+
+            SetProperty(ref _hasSession, value);
+            PrintThermalCommand.RaiseCanExecuteChanged();
+            PrintA4Command.RaiseCanExecuteChanged();
+        }
+    }
+
+    public bool ShowThermalPreview
+    {
+        get => _showThermalPreview;
+        private set => SetProperty(ref _showThermalPreview, value);
+    }
+
+    public bool ShowA4Preview
+    {
+        get => _showA4Preview;
+        private set => SetProperty(ref _showA4Preview, value);
+    }
+
+    public string ThermalPreviewText
+    {
+        get => _thermalPreviewText;
+        private set => SetProperty(ref _thermalPreviewText, value);
     }
 
     public string ReadOnlyHintVisibility => HasSession && !CanEditMovements ? "Visible" : "Collapsed";
@@ -662,6 +718,163 @@ public sealed class CashSessionViewModel : ObservableObject
         ShowWithdrawalForm = false;
         ShowSupplyForm = false;
         CloseDeleteConfirm();
+    }
+
+    /// <summary>
+    /// Abre o resumo da bobina no overlay, sem enviar à impressora.
+    /// </summary>
+    private async Task OpenThermalPreviewAsync()
+    {
+        var report = await LoadReportAsync();
+        if (report is null)
+            return;
+
+        SetPreviewReport(report);
+        ThermalPreviewText = new CashMovementTextFormatter().Format(report);
+        ShowA4Preview = false;
+        ShowThermalPreview = true;
+    }
+
+    /// <summary>
+    /// Abre as páginas A4 na tela, sem diálogo de impressora.
+    /// </summary>
+    private async Task OpenA4PreviewAsync()
+    {
+        var report = await LoadReportAsync();
+        if (report is null)
+            return;
+
+        try
+        {
+            var pages = _printer.RenderA4PreviewPngs(report);
+            A4PreviewPages.Clear();
+            foreach (var png in pages)
+                A4PreviewPages.Add(LoadPng(png));
+
+            SetPreviewReport(report);
+            ShowThermalPreview = false;
+            ShowA4Preview = true;
+        }
+        catch (DomainException ex)
+        {
+            Publish(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            Publish($"Falha na pré-visualização: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Envia o resumo já exibido para a impressora térmica padrão.
+    /// </summary>
+    private async Task ConfirmThermalPrintAsync()
+    {
+        if (_previewReport is null)
+            return;
+
+        try
+        {
+            await _printer.PrintThermalAsync(_previewReport);
+            Publish("Movimento de caixa enviado para impressão.");
+        }
+        catch (DomainException ex)
+        {
+            Publish(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            Publish($"Falha na impressão: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Abre o diálogo de impressoras e envia o A4 já exibido.
+    /// </summary>
+    private async Task ConfirmA4PrintAsync()
+    {
+        if (_previewReport is null)
+            return;
+
+        try
+        {
+            var printed = await _printer.PrintA4Async(_previewReport);
+            Publish(printed
+                ? "Movimento de caixa enviado para impressão."
+                : "Impressão cancelada.");
+        }
+        catch (DomainException ex)
+        {
+            Publish(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            Publish($"Falha na impressão: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Fecha a pré-visualização sem imprimir.
+    /// </summary>
+    public void ClosePreview()
+    {
+        ShowThermalPreview = false;
+        ShowA4Preview = false;
+        ThermalPreviewText = string.Empty;
+        A4PreviewPages.Clear();
+        SetPreviewReport(null);
+    }
+
+    private async Task<CashMovementReport?> LoadReportAsync()
+    {
+        if (_selectedSession is null)
+            return null;
+
+        try
+        {
+            var detail = await _cashRegisterService.GetSessionDetailAsync(_selectedSession.Id);
+            if (detail is null)
+            {
+                Publish("Ciclo não encontrado.");
+                return null;
+            }
+
+            var store = _session.CurrentStore;
+            return new CashMovementReport(
+                store?.Code ?? string.Empty,
+                store?.Name ?? string.Empty,
+                detail,
+                DateTime.Now);
+        }
+        catch (DomainException ex)
+        {
+            Publish(ex.Message);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Publish($"Falha na pré-visualização: {ex.Message}");
+            return null;
+        }
+    }
+
+    private void SetPreviewReport(CashMovementReport? report)
+    {
+        _previewReport = report;
+        ConfirmThermalPrintCommand.RaiseCanExecuteChanged();
+        ConfirmA4PrintCommand.RaiseCanExecuteChanged();
+    }
+
+    private static BitmapImage LoadPng(byte[] png)
+    {
+        var image = new BitmapImage();
+        using var stream = new MemoryStream(png);
+        image.BeginInit();
+        image.CacheOption = BitmapCacheOption.OnLoad;
+        image.StreamSource = stream;
+        image.EndInit();
+        image.Freeze();
+        return image;
     }
 
     /// <summary>

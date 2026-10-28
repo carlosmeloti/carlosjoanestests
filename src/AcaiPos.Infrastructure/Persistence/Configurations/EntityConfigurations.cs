@@ -81,6 +81,14 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(x => x.CostPrice).HasPrecision(18, 2);
         builder.Property(x => x.StockQuantity).HasPrecision(18, 3);
         builder.Property(x => x.UnitOfMeasure).HasMaxLength(10).IsRequired();
+        builder.Property(x => x.Ncm).HasMaxLength(8).IsRequired();
+        builder.Property(x => x.Cfop).HasMaxLength(4).IsRequired();
+        builder.Property(x => x.Csosn).HasMaxLength(3).IsRequired();
+        builder.Property(x => x.Cest).HasMaxLength(7);
+        builder.Property(x => x.PisCst).HasMaxLength(2).IsRequired();
+        builder.Property(x => x.CofinsCst).HasMaxLength(2).IsRequired();
+        builder.Property(x => x.IbsCbsCst).HasMaxLength(3).IsRequired();
+        builder.Property(x => x.CClassTrib).HasMaxLength(6).IsRequired();
         builder.HasIndex(x => x.Sku).IsUnique();
         builder.HasIndex(x => x.Barcode);
         builder.HasMany(x => x.Categories)
@@ -116,6 +124,9 @@ internal sealed class CashRegisterConfiguration : IEntityTypeConfiguration<CashR
         builder.Property(x => x.DifferenceAmount).HasPrecision(18, 2);
         builder.Property(x => x.Status).HasConversion<int>();
         builder.Property(x => x.ClosingNotes).HasMaxLength(500);
+        builder.Property(x => x.StoreId).IsRequired();
+        builder.HasIndex(x => x.StoreId);
+        builder.HasOne<Store>().WithMany().HasForeignKey(x => x.StoreId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.Terminal).WithMany().HasForeignKey(x => x.TerminalId);
         builder.HasOne(x => x.Operator).WithMany().HasForeignKey(x => x.OperatorId);
         builder.HasMany(x => x.Movements)
@@ -151,8 +162,12 @@ internal sealed class SaleConfiguration : IEntityTypeConfiguration<Sale>
         builder.Property(x => x.Total).HasPrecision(18, 2);
         builder.Property(x => x.Status).HasConversion<int>();
         builder.Property(x => x.Origin).HasConversion<int>();
+        builder.Property(x => x.StoreId).IsRequired();
+        builder.HasIndex(x => x.StoreId);
+        builder.HasOne<Store>().WithMany().HasForeignKey(x => x.StoreId).OnDelete(DeleteBehavior.Restrict);
         builder.Property(x => x.TicketNumber).HasMaxLength(40).IsRequired();
-        builder.Property(x => x.CancellationReason).HasMaxLength(250);
+        builder.Property(x => x.CpfConsumidor).HasMaxLength(11);
+        builder.Property(x => x.CancellationReason).HasMaxLength(255);
         builder.HasIndex(x => x.TicketNumber).IsUnique();
         builder.HasOne(x => x.CashRegister).WithMany().HasForeignKey(x => x.CashRegisterId);
         builder.HasOne(x => x.Operator).WithMany().HasForeignKey(x => x.OperatorId);
@@ -242,5 +257,91 @@ internal sealed class FormaPagamentoConfiguration : IEntityTypeConfiguration<For
         builder.Property(x => x.IsEnable).HasDefaultValue(true);
         builder.Property(x => x.CorRgbBotao).HasMaxLength(7).IsRequired().HasDefaultValue(FormaPagamento.DefaultButtonColor);
         builder.Property(x => x.Ordem).IsRequired();
+        builder.Property(x => x.CodigoTpag).HasMaxLength(2).IsRequired().HasDefaultValue("99");
+    }
+}
+
+internal sealed class ConfiguracaoFiscalConfiguration : IEntityTypeConfiguration<ConfiguracaoFiscal>
+{
+    public void Configure(EntityTypeBuilder<ConfiguracaoFiscal> builder)
+    {
+        builder.ToTable("ConfiguracoesFiscais");
+        builder.ConfigureAuditable();
+        builder.Property(x => x.RazaoSocial).HasMaxLength(60).IsRequired();
+        builder.Property(x => x.NomeFantasia).HasMaxLength(60).IsRequired();
+        builder.Property(x => x.Cnpj).HasMaxLength(14).IsRequired();
+        builder.Property(x => x.InscricaoEstadual).HasMaxLength(14).IsRequired();
+        builder.Property(x => x.Logradouro).HasMaxLength(60).IsRequired();
+        builder.Property(x => x.Numero).HasMaxLength(60).IsRequired();
+        builder.Property(x => x.Bairro).HasMaxLength(60).IsRequired();
+        builder.Property(x => x.Municipio).HasMaxLength(60).IsRequired();
+        builder.Property(x => x.Uf).HasMaxLength(2).IsRequired();
+        builder.Property(x => x.Cep).HasMaxLength(8).IsRequired();
+        builder.Property(x => x.Telefone).HasMaxLength(14);
+        builder.Property(x => x.Csc).HasMaxLength(50).IsRequired();
+        builder.Property(x => x.CertificadoArquivo).HasMaxLength(500);
+        builder.Property(x => x.CertificadoSenhaProtegida).HasMaxLength(500);
+        builder.Property(x => x.JustificativaContingencia).HasMaxLength(256).IsRequired();
+        builder.HasIndex(x => x.StoreId).IsUnique();
+    }
+}
+
+internal sealed class ConfiguracaoConfiguration : IEntityTypeConfiguration<Configuracao>
+{
+    public void Configure(EntityTypeBuilder<Configuracao> builder)
+    {
+        builder.ToTable("Configuracoes");
+        builder.ConfigureAuditable();
+        builder.Property(x => x.ModoInterface).HasConversion<int>().IsRequired();
+    }
+}
+
+internal sealed class DocumentoFiscalConfiguration : IEntityTypeConfiguration<DocumentoFiscal>
+{
+    public void Configure(EntityTypeBuilder<DocumentoFiscal> builder)
+    {
+        builder.ToTable("DocumentosFiscais");
+        builder.ConfigureAuditable();
+        builder.Property(x => x.Chave).HasMaxLength(44);
+        builder.Property(x => x.Protocolo).HasMaxLength(20);
+        builder.Property(x => x.ProtocoloCancelamento).HasMaxLength(20);
+        builder.Property(x => x.CStat).HasMaxLength(10);
+        builder.Property(x => x.Motivo).HasMaxLength(500);
+        builder.Property(x => x.QrCode).HasMaxLength(1000);
+        builder.Property(x => x.UrlChave).HasMaxLength(300);
+        builder.Property(x => x.Status).HasConversion<int>();
+        builder.HasIndex(x => x.SaleId);
+        builder.HasIndex(x => new { x.Serie, x.Numero });
+        builder.HasOne<Sale>().WithMany().HasForeignKey(x => x.SaleId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class SyncOperationConfiguration : IEntityTypeConfiguration<SyncOperation>
+{
+    public void Configure(EntityTypeBuilder<SyncOperation> builder)
+    {
+        builder.ToTable("SyncOperations");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.AggregateType).HasConversion<int>().IsRequired();
+        builder.Property(x => x.Kind).HasConversion<int>().IsRequired();
+        builder.Property(x => x.Status).HasConversion<int>().IsRequired();
+        builder.Property(x => x.AttemptCount).IsRequired();
+        builder.Property(x => x.LastError).HasMaxLength(2000);
+        builder.Property(x => x.CreatedAt).IsRequired();
+        builder.Property(x => x.UpdatedAt).IsRequired();
+        builder.HasIndex(x => new { x.AggregateType, x.AggregateId }).IsUnique();
+        builder.HasIndex(x => x.Status);
+    }
+}
+
+internal sealed class SyncErrorConfiguration : IEntityTypeConfiguration<SyncError>
+{
+    public void Configure(EntityTypeBuilder<SyncError> builder)
+    {
+        builder.ToTable("SyncErrors");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Message).HasMaxLength(2000).IsRequired();
+        builder.Property(x => x.OccurredAt).IsRequired();
+        builder.HasIndex(x => x.SyncOperationId);
     }
 }

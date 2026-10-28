@@ -7,6 +7,7 @@ public class Sale : AuditableEntity
 {
     public Guid CashRegisterId { get; private set; }
     public Guid TerminalId { get; private set; }
+    public Guid StoreId { get; private set; }
     public Guid OperatorId { get; private set; }
     public DateTime SoldAt { get; private set; }
     public decimal Subtotal { get; private set; }
@@ -19,6 +20,7 @@ public class Sale : AuditableEntity
     public Guid? CancelledByOperatorId { get; private set; }
     public DateTime? CancelledAt { get; private set; }
     public string TicketNumber { get; private set; } = string.Empty;
+    public string? CpfConsumidor { get; private set; }
 
     public CashRegister? CashRegister { get; private set; }
     public User? Operator { get; private set; }
@@ -36,6 +38,7 @@ public class Sale : AuditableEntity
     public static Sale Create(
         Guid cashRegisterId,
         Guid terminalId,
+        Guid storeId,
         Guid operatorId,
         string ticketNumber,
         SaleOrigin origin = SaleOrigin.Pos)
@@ -44,6 +47,8 @@ public class Sale : AuditableEntity
             throw new DomainException("Caixa é obrigatório.");
         if (terminalId == Guid.Empty)
             throw new DomainException("Terminal é obrigatório.");
+        if (storeId == Guid.Empty)
+            throw new DomainException("Loja é obrigatória.");
         if (operatorId == Guid.Empty)
             throw new DomainException("Operador é obrigatório.");
         if (string.IsNullOrWhiteSpace(ticketNumber))
@@ -53,6 +58,7 @@ public class Sale : AuditableEntity
         {
             CashRegisterId = cashRegisterId,
             TerminalId = terminalId,
+            StoreId = storeId,
             OperatorId = operatorId,
             SoldAt = DateTime.UtcNow,
             Status = SaleStatus.Open,
@@ -63,6 +69,180 @@ public class Sale : AuditableEntity
             SurchargeAmount = 0,
             Total = 0
         };
+    }
+
+    public static Sale Restaurar(
+        Guid id,
+        Guid cashRegisterId,
+        Guid terminalId,
+        Guid storeId,
+        Guid operatorId,
+        DateTime soldAt,
+        decimal subtotal,
+        decimal discountAmount,
+        decimal surchargeAmount,
+        decimal total,
+        SaleStatus status,
+        SaleOrigin origin,
+        string? cancellationReason,
+        Guid? cancelledByOperatorId,
+        DateTime? cancelledAt,
+        string ticketNumber,
+        string? cpfConsumidor,
+        DateTime createdAt,
+        DateTime updatedAt,
+        IReadOnlyList<SaleItem> items,
+        IReadOnlyList<Payment> payments)
+    {
+        var sale = new Sale();
+        sale.DefinirId(id);
+        sale.AtribuirEspelho(
+            cashRegisterId,
+            terminalId,
+            storeId,
+            operatorId,
+            soldAt,
+            subtotal,
+            discountAmount,
+            surchargeAmount,
+            total,
+            status,
+            origin,
+            cancellationReason,
+            cancelledByOperatorId,
+            cancelledAt,
+            ticketNumber,
+            cpfConsumidor,
+            createdAt,
+            updatedAt);
+        sale.SubstituirConteudo(items, payments);
+        return sale;
+    }
+
+    public void AplicarEspelho(
+        Guid cashRegisterId,
+        Guid terminalId,
+        Guid storeId,
+        Guid operatorId,
+        DateTime soldAt,
+        decimal subtotal,
+        decimal discountAmount,
+        decimal surchargeAmount,
+        decimal total,
+        SaleStatus status,
+        SaleOrigin origin,
+        string? cancellationReason,
+        Guid? cancelledByOperatorId,
+        DateTime? cancelledAt,
+        string ticketNumber,
+        string? cpfConsumidor,
+        DateTime createdAt,
+        DateTime updatedAt,
+        IReadOnlyList<SaleItem> items,
+        IReadOnlyList<Payment> payments)
+    {
+        AtribuirEspelho(
+            cashRegisterId,
+            terminalId,
+            storeId,
+            operatorId,
+            soldAt,
+            subtotal,
+            discountAmount,
+            surchargeAmount,
+            total,
+            status,
+            origin,
+            cancellationReason,
+            cancelledByOperatorId,
+            cancelledAt,
+            ticketNumber,
+            cpfConsumidor,
+            createdAt,
+            updatedAt);
+        SubstituirConteudo(items, payments);
+    }
+
+    private void AtribuirEspelho(
+        Guid cashRegisterId,
+        Guid terminalId,
+        Guid storeId,
+        Guid operatorId,
+        DateTime soldAt,
+        decimal subtotal,
+        decimal discountAmount,
+        decimal surchargeAmount,
+        decimal total,
+        SaleStatus status,
+        SaleOrigin origin,
+        string? cancellationReason,
+        Guid? cancelledByOperatorId,
+        DateTime? cancelledAt,
+        string ticketNumber,
+        string? cpfConsumidor,
+        DateTime createdAt,
+        DateTime updatedAt)
+    {
+        if (cashRegisterId == Guid.Empty)
+            throw new DomainException("Caixa é obrigatório.");
+        if (terminalId == Guid.Empty)
+            throw new DomainException("Terminal é obrigatório.");
+        if (storeId == Guid.Empty)
+            throw new DomainException("Loja é obrigatória.");
+        if (operatorId == Guid.Empty)
+            throw new DomainException("Operador é obrigatório.");
+        if (status is not (SaleStatus.Completed or SaleStatus.Cancelled))
+            throw new DomainException("Somente venda concluída ou cancelada entra no lote.");
+        if (string.IsNullOrWhiteSpace(ticketNumber))
+            throw new DomainException("Número do ticket é obrigatório.");
+        if (status == SaleStatus.Cancelled && string.IsNullOrWhiteSpace(cancellationReason))
+            throw new DomainException("Motivo do cancelamento é obrigatório.");
+
+        CashRegisterId = cashRegisterId;
+        TerminalId = terminalId;
+        StoreId = storeId;
+        OperatorId = operatorId;
+        SoldAt = soldAt;
+        Subtotal = decimal.Round(subtotal, 2);
+        DiscountAmount = decimal.Round(discountAmount, 2);
+        SurchargeAmount = decimal.Round(surchargeAmount, 2);
+        Total = decimal.Round(total, 2);
+        Status = status;
+        Origin = origin;
+        CancellationReason = string.IsNullOrWhiteSpace(cancellationReason) ? null : cancellationReason.Trim();
+        CancelledByOperatorId = cancelledByOperatorId;
+        CancelledAt = cancelledAt;
+        TicketNumber = ticketNumber.Trim();
+        CpfConsumidor = string.IsNullOrWhiteSpace(cpfConsumidor) ? null : cpfConsumidor.Trim();
+        RestaurarTrilha(createdAt, updatedAt, null, SyncStatus.Synced);
+    }
+
+    private void SubstituirConteudo(IReadOnlyList<SaleItem> items, IReadOnlyList<Payment> payments)
+    {
+        if (items.Count == 0)
+            throw new DomainException("Venda concluída exige itens.");
+
+        Sincronizar(_items, items, (atual, recebido) => atual.CopiarDe(recebido));
+        Sincronizar(_payments, payments, (atual, recebido) => atual.CopiarDe(recebido));
+    }
+
+    private static void Sincronizar<T>(List<T> atuais, IReadOnlyList<T> recebidos, Action<T, T> copiar)
+        where T : Entity
+    {
+        var ids = recebidos.Select(item => item.Id).ToHashSet();
+        atuais.RemoveAll(item => !ids.Contains(item.Id));
+
+        foreach (var recebido in recebidos)
+        {
+            var atual = atuais.FirstOrDefault(item => item.Id == recebido.Id);
+            if (atual is null)
+            {
+                atuais.Add(recebido);
+                continue;
+            }
+
+            copiar(atual, recebido);
+        }
     }
 
     public SaleItem AddItem(Product product, decimal quantity)
@@ -109,6 +289,12 @@ public class Sale : AuditableEntity
         var item = GetItem(saleItemId);
         _items.Remove(item);
         RecalculateTotals();
+    }
+
+    public void DefinirCpfConsumidor(string? cpf)
+    {
+        CpfConsumidor = string.IsNullOrWhiteSpace(cpf) ? null : new string(cpf.Where(char.IsDigit).ToArray());
+        MarkUpdated();
     }
 
     public void ApplyDiscount(decimal discountAmount)

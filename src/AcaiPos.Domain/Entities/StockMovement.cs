@@ -48,4 +48,97 @@ public class StockMovement : AuditableEntity
             OccurredAt = DateTime.UtcNow
         };
     }
+
+    public static StockMovement Restaurar(
+        Guid id,
+        Guid productId,
+        Guid? saleId,
+        Guid? operatorId,
+        StockMovementType type,
+        decimal quantity,
+        decimal previousQuantity,
+        decimal resultingQuantity,
+        string reason,
+        DateTime occurredAt,
+        DateTime createdAt,
+        DateTime updatedAt,
+        DateTime? deletedAt)
+    {
+        var movement = new StockMovement();
+        movement.DefinirId(id);
+        movement.AtribuirEspelho(
+            productId,
+            saleId,
+            operatorId,
+            type,
+            quantity,
+            previousQuantity,
+            resultingQuantity,
+            reason,
+            occurredAt,
+            createdAt,
+            updatedAt,
+            deletedAt);
+        return movement;
+    }
+
+    public void AplicarEspelho(
+        Guid productId,
+        Guid? saleId,
+        Guid? operatorId,
+        StockMovementType type,
+        decimal quantity,
+        decimal previousQuantity,
+        decimal resultingQuantity,
+        string reason,
+        DateTime occurredAt,
+        DateTime createdAt,
+        DateTime updatedAt,
+        DateTime? deletedAt)
+        => AtribuirEspelho(
+            productId,
+            saleId,
+            operatorId,
+            type,
+            quantity,
+            previousQuantity,
+            resultingQuantity,
+            reason,
+            occurredAt,
+            createdAt,
+            updatedAt,
+            deletedAt);
+
+    private void AtribuirEspelho(
+        Guid productId,
+        Guid? saleId,
+        Guid? operatorId,
+        StockMovementType type,
+        decimal quantity,
+        decimal previousQuantity,
+        decimal resultingQuantity,
+        string reason,
+        DateTime occurredAt,
+        DateTime createdAt,
+        DateTime updatedAt,
+        DateTime? deletedAt)
+    {
+        if (productId == Guid.Empty)
+            throw new DomainException("Produto é obrigatório.");
+        if (quantity == 0)
+            throw new DomainException("Quantidade da movimentação não pode ser zero.");
+        if (string.IsNullOrWhiteSpace(reason))
+            throw new DomainException("Motivo da movimentação é obrigatório.");
+
+        ProductId = productId;
+        SaleId = saleId;
+        OperatorId = operatorId;
+        Type = type;
+        Quantity = quantity;
+        PreviousQuantity = previousQuantity;
+        ResultingQuantity = resultingQuantity;
+        Reason = reason.Trim();
+        OccurredAt = occurredAt;
+        RestaurarTrilha(createdAt, updatedAt, deletedAt, SyncStatus.Synced);
+    }
 }

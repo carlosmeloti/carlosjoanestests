@@ -4,6 +4,14 @@ public abstract class Entity
 {
     public Guid Id { get; protected set; } = Guid.NewGuid();
 
+    protected void DefinirId(Guid id)
+    {
+        if (id == Guid.Empty)
+            throw new DomainException("Identificador é obrigatório.");
+
+        Id = id;
+    }
+
     public override bool Equals(object? obj)
     {
         if (obj is not Entity other)
