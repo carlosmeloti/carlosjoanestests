@@ -1,19 +1,27 @@
-using AcaiPos.Api.Contratos;
-using AcaiPos.Api.Persistence;
+using AcaiPos.Api.Dtos;
+using AcaiPos.Api.Repositories;
+using AcaiPos.Api.Seguranca;
 using AcaiPos.Domain.Common;
 using AcaiPos.Domain.Entities;
-using Microsoft.EntityFrameworkCore;
 
-namespace AcaiPos.Api.Seguranca;
+namespace AcaiPos.Api.Services;
 
-public sealed class InscricaoService
+public sealed class InscricaoService : IInscricaoService
 {
-    private readonly CentralDbContext _db;
+    private readonly ILojaRepository _lojas;
+    private readonly ITerminalRepository _terminais;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<InscricaoService> _logger;
 
-    public InscricaoService(CentralDbContext db, ILogger<InscricaoService> logger)
+    public InscricaoService(
+        ILojaRepository lojas,
+        ITerminalRepository terminais,
+        IUnitOfWork unitOfWork,
+        ILogger<InscricaoService> logger)
     {
-        _db = db;
+        _lojas = lojas;
+        _terminais = terminais;
+        _unitOfWork = unitOfWork;
         _logger = logger;
     }
 
@@ -36,8 +44,7 @@ public sealed class InscricaoService
         }
 
         var codigoTerminal = request.CodigoTerminal.Trim().ToUpperInvariant();
-        var terminal = await _db.Terminals
-            .FirstOrDefaultAsync(item => item.StoreId == store.Id && item.Code == codigoTerminal, cancellationToken);
+        var terminal = await _terminais.ObterPorLojaECodigoAsync(store.Id, codigoTerminal, cancellationToken);
 
         if (terminal is null)
         {
@@ -50,17 +57,16 @@ public sealed class InscricaoService
                 throw new RecusaApiException(ex.Message);
             }
 
-            _db.Add(terminal);
+            _terminais.Adicionar(terminal);
         }
 
-        var hashAtual = _db.Entry(terminal).Property<string?>("SegredoHash").CurrentValue;
+        var hashAtual = _terminais.LerSegredoHash(terminal);
         if (!string.IsNullOrEmpty(hashAtual))
             throw new RecusaApiException("Segredo do terminal já foi emitido.", StatusCodes.Status409Conflict);
 
         var segredo = SegredoHasher.Gerar();
-        _db.Entry(terminal).Property<string?>("SegredoHash").CurrentValue = SegredoHasher.Hash(segredo);
-        _db.Entry(terminal).Property<DateTime?>("SegredoEmitidoEm").CurrentValue = DateTime.UtcNow;
-        await _db.SaveChangesAsync(cancellationToken);
+        _terminais.GravarSegredo(terminal, SegredoHasher.Hash(segredo), DateTime.UtcNow);
+        await _unitOfWork.SalvarAsync(cancellationToken);
 
         _logger.LogInformation("Terminal {TerminalId} da loja {StoreId} inscrito.", terminal.Id, store.Id);
         return new InscricaoResponse(store.Id, terminal.Id, segredo);
@@ -69,22 +75,12 @@ public sealed class InscricaoService
     private async Task<Store> ObterOuCriarLojaAsync(InscricaoRequest request, CancellationToken cancellationToken)
     {
         var codigo = request.CodigoLoja.Trim().ToUpperInvariant();
-        var store = await _db.Stores.FirstOrDefaultAsync(item => item.Code == codigo, cancellationToken);
+        var store = await _lojas.ObterPorCodigoAsync(codigo, cancellationToken);
         if (store is not null)
             return store;
 
         store = Store.Create(request.CodigoLoja, request.NomeLoja);
-        _db.Add(store);
+        _lojas.Adicionar(store);
         return store;
     }
-}
-
-public sealed class RecusaApiException : Exception
-{
-    public RecusaApiException(string message, int statusCode = StatusCodes.Status400BadRequest) : base(message)
-    {
-        StatusCode = statusCode;
-    }
-
-    public int StatusCode { get; }
 }

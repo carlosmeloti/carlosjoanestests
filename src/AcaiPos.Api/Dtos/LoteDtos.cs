@@ -1,14 +1,6 @@
 using AcaiPos.Domain.Enums;
 
-namespace AcaiPos.Api.Contratos;
-
-public sealed record InscricaoRequest(string CodigoLoja, string NomeLoja, string CodigoTerminal, string NomeTerminal);
-
-public sealed record InscricaoResponse(Guid LojaId, Guid TerminalId, string Segredo);
-
-public sealed record TokenRequest(Guid TerminalId, string Segredo);
-
-public sealed record TokenResponse(string AccessToken, int ExpiresIn);
+namespace AcaiPos.Api.Dtos;
 
 public sealed class LoteRequest
 {
@@ -58,7 +50,7 @@ public sealed class ItemLote
 public sealed class PagamentoLote
 {
     public Guid Id { get; set; }
-    public int FormaPagamentoId { get; set; }
+    public Guid FormaPagamentoId { get; set; }
     public string Descricao { get; set; } = string.Empty;
     public decimal Amount { get; set; }
     public decimal? AmountReceived { get; set; }

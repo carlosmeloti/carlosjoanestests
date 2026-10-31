@@ -4,6 +4,7 @@ using AcaiPos.Application.Abstractions;
 using AcaiPos.Domain.Entities;
 using AcaiPos.Domain.Enums;
 using AcaiPos.Infrastructure.Persistence;
+using AcaiPos.Infrastructure.Sync;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -13,6 +14,9 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, string databasePath)
     {
+        services.AddSingleton(new CaminhoBancoLocal(databasePath));
+        services.AddSingleton<SincronizadorCatalogo>();
+        services.AddSingleton<SincronizadorFila>();
         services.AddDbContext<PosDbContext>(options =>
             options.UseSqlite($"Data Source={databasePath}"),
             contextLifetime: ServiceLifetime.Singleton,
@@ -37,7 +41,9 @@ public static class DependencyInjection
         await MigrateSaleSurchargeAsync(db);
         await MigrateFormasPagamentoAsync(db);
         await MigrateFiscalAsync(db);
+        await MigrateFormaPagamentoGuidAsync(db);
         await MigrateConfiguracoesAsync(db);
+        await MigrateInscricaoTerminalAsync(db);
         await SeedAsync(db, hasher);
     }
 
@@ -133,17 +139,28 @@ public static class DependencyInjection
 
             if (await CountAsync(connection, "FormasPagamento") == 0)
             {
+                var idInteiro = await ColunaInteiraAsync(connection, "FormasPagamento", "Id");
                 await ExecuteNonQueryAsync(
                     connection,
-                    """
-                    INSERT INTO "FormasPagamento"
-                        ("Id", "Descricao", "CalculaTroco", "IsParcela", "CorRgbBotao", "Ordem", "IsEnable")
-                    VALUES
-                        (1, 'PIX', 0, 0, '#2F9E7A', 1, 1),
-                        (2, 'Débito', 0, 0, '#2A3642', 2, 1),
-                        (3, 'Crédito', 0, 0, '#2A3642', 3, 1),
-                        (4, 'Dinheiro', 1, 0, '#2A3642', 4, 1);
-                    """);
+                    idInteiro
+                        ? """
+                          INSERT INTO "FormasPagamento"
+                              ("Id", "Descricao", "CalculaTroco", "IsParcela", "CorRgbBotao", "Ordem", "IsEnable")
+                          VALUES
+                              (1, 'PIX', 0, 0, '#2F9E7A', 1, 1),
+                              (2, 'Débito', 0, 0, '#2A3642', 2, 1),
+                              (3, 'Crédito', 0, 0, '#2A3642', 3, 1),
+                              (4, 'Dinheiro', 1, 0, '#2A3642', 4, 1);
+                          """
+                        : """
+                          INSERT INTO "FormasPagamento"
+                              ("Id", "Descricao", "CalculaTroco", "IsParcela", "CorRgbBotao", "Ordem", "IsEnable")
+                          VALUES
+                              ('00000000-0000-4000-8000-000000000001', 'PIX', 0, 0, '#2F9E7A', 1, 1),
+                              ('00000000-0000-4000-8000-000000000002', 'Débito', 0, 0, '#2A3642', 2, 1),
+                              ('00000000-0000-4000-8000-000000000003', 'Crédito', 0, 0, '#2A3642', 3, 1),
+                              ('00000000-0000-4000-8000-000000000004', 'Dinheiro', 1, 0, '#2A3642', 4, 1);
+                          """);
             }
 
             if (!await HasColumnAsync(connection, "Payments", "FormaPagamentoId"))
@@ -217,10 +234,10 @@ public static class DependencyInjection
 
             if (await HasTableAsync(connection, "FormasPagamento"))
             {
-                await ExecuteNonQueryAsync(connection, """UPDATE "FormasPagamento" SET "CodigoTpag" = '17' WHERE "Id" = 1;""");
-                await ExecuteNonQueryAsync(connection, """UPDATE "FormasPagamento" SET "CodigoTpag" = '04' WHERE "Id" = 2;""");
-                await ExecuteNonQueryAsync(connection, """UPDATE "FormasPagamento" SET "CodigoTpag" = '03' WHERE "Id" = 3;""");
-                await ExecuteNonQueryAsync(connection, """UPDATE "FormasPagamento" SET "CodigoTpag" = '01' WHERE "Id" = 4;""");
+                await ExecuteNonQueryAsync(connection, """UPDATE "FormasPagamento" SET "CodigoTpag" = '17' WHERE "Id" = 1 OR "Id" = '00000000-0000-4000-8000-000000000001';""");
+                await ExecuteNonQueryAsync(connection, """UPDATE "FormasPagamento" SET "CodigoTpag" = '04' WHERE "Id" = 2 OR "Id" = '00000000-0000-4000-8000-000000000002';""");
+                await ExecuteNonQueryAsync(connection, """UPDATE "FormasPagamento" SET "CodigoTpag" = '03' WHERE "Id" = 3 OR "Id" = '00000000-0000-4000-8000-000000000003';""");
+                await ExecuteNonQueryAsync(connection, """UPDATE "FormasPagamento" SET "CodigoTpag" = '01' WHERE "Id" = 4 OR "Id" = '00000000-0000-4000-8000-000000000004';""");
             }
 
             if (!await HasTableAsync(connection, "ConfiguracoesFiscais"))
@@ -463,6 +480,120 @@ public static class DependencyInjection
         return result is not null and not DBNull;
     }
 
+    private static async Task<bool> ColunaInteiraAsync(DbConnection connection, string table, string column)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT type FROM pragma_table_info('{table}') WHERE name = '{column}' LIMIT 1;";
+        var result = await command.ExecuteScalarAsync();
+        return result is string type && type.Contains("INT", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static async Task MigrateFormaPagamentoGuidAsync(PosDbContext db)
+    {
+        var connection = db.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+        if (shouldClose)
+            await connection.OpenAsync();
+
+        try
+        {
+            if (await HasTableAsync(connection, "FormasPagamento")
+                && await ColunaInteiraAsync(connection, "FormasPagamento", "Id"))
+            {
+                await ExecuteNonQueryAsync(
+                    connection,
+                    """
+                    CREATE TABLE "FormasPagamento__guid" (
+                        "Id" TEXT NOT NULL CONSTRAINT "PK_FormasPagamento" PRIMARY KEY,
+                        "Descricao" TEXT NOT NULL,
+                        "CalculaTroco" INTEGER NOT NULL DEFAULT 0,
+                        "IsParcela" INTEGER NOT NULL DEFAULT 0,
+                        "CorRgbBotao" TEXT NOT NULL DEFAULT '#2A3642',
+                        "Ordem" INTEGER NOT NULL,
+                        "IsEnable" INTEGER NOT NULL DEFAULT 1,
+                        "CodigoTpag" TEXT NOT NULL DEFAULT '99',
+                        "UpdatedAt" TEXT NOT NULL,
+                        "DeletedAt" TEXT NULL
+                    );
+                    """);
+                await ExecuteNonQueryAsync(
+                    connection,
+                    """
+                    INSERT INTO "FormasPagamento__guid"
+                        ("Id", "Descricao", "CalculaTroco", "IsParcela", "CorRgbBotao", "Ordem", "IsEnable", "CodigoTpag", "UpdatedAt")
+                    SELECT
+                        CASE "Id"
+                            WHEN 1 THEN '00000000-0000-4000-8000-000000000001'
+                            WHEN 2 THEN '00000000-0000-4000-8000-000000000002'
+                            WHEN 3 THEN '00000000-0000-4000-8000-000000000003'
+                            WHEN 4 THEN '00000000-0000-4000-8000-000000000004'
+                            ELSE printf('00000000-0000-4000-8000-%012d', "Id")
+                        END,
+                        "Descricao", "CalculaTroco", "IsParcela", "CorRgbBotao", "Ordem", "IsEnable",
+                        COALESCE("CodigoTpag", '99'),
+                        strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                    FROM "FormasPagamento";
+                    """);
+                await ExecuteNonQueryAsync(connection, """DROP TABLE "FormasPagamento";""");
+                await ExecuteNonQueryAsync(connection, """ALTER TABLE "FormasPagamento__guid" RENAME TO "FormasPagamento";""");
+            }
+
+            if (await HasTableAsync(connection, "Payments")
+                && await ColunaInteiraAsync(connection, "Payments", "FormaPagamentoId"))
+            {
+                await ExecuteNonQueryAsync(
+                    connection,
+                    """
+                    CREATE TABLE "Payments__guid" (
+                        "Id" TEXT NOT NULL CONSTRAINT "PK_Payments" PRIMARY KEY,
+                        "SaleId" TEXT NOT NULL,
+                        "FormaPagamentoId" TEXT NOT NULL,
+                        "Descricao" TEXT NOT NULL,
+                        "Amount" TEXT NOT NULL,
+                        "AmountReceived" TEXT NULL,
+                        "ChangeAmount" TEXT NOT NULL,
+                        "ExternalReference" TEXT NULL,
+                        "Status" INTEGER NOT NULL,
+                        "PaidAt" TEXT NOT NULL
+                    );
+                    """);
+                await ExecuteNonQueryAsync(
+                    connection,
+                    """
+                    INSERT INTO "Payments__guid"
+                    SELECT
+                        "Id",
+                        "SaleId",
+                        CASE "FormaPagamentoId"
+                            WHEN 1 THEN '00000000-0000-4000-8000-000000000001'
+                            WHEN 2 THEN '00000000-0000-4000-8000-000000000002'
+                            WHEN 3 THEN '00000000-0000-4000-8000-000000000003'
+                            WHEN 4 THEN '00000000-0000-4000-8000-000000000004'
+                            ELSE printf('00000000-0000-4000-8000-%012d', "FormaPagamentoId")
+                        END,
+                        "Descricao",
+                        "Amount",
+                        "AmountReceived",
+                        "ChangeAmount",
+                        "ExternalReference",
+                        "Status",
+                        "PaidAt"
+                    FROM "Payments";
+                    """);
+                await ExecuteNonQueryAsync(connection, """DROP TABLE "Payments";""");
+                await ExecuteNonQueryAsync(connection, """ALTER TABLE "Payments__guid" RENAME TO "Payments";""");
+            }
+
+            if (await HasTableAsync(connection, "FormasPagamento"))
+                await AddColumnIfMissingAsync(connection, "FormasPagamento", "UpdatedAt", "TEXT NOT NULL DEFAULT '2026-01-01T00:00:00Z'");
+        }
+        finally
+        {
+            if (shouldClose)
+                await connection.CloseAsync();
+        }
+    }
+
     private static async Task<long> CountAsync(DbConnection connection, string table)
     {
         await using var command = connection.CreateCommand();
@@ -555,6 +686,8 @@ public static class DependencyInjection
                     CREATE TABLE "Configuracoes" (
                         "Id" TEXT NOT NULL CONSTRAINT "PK_Configuracoes" PRIMARY KEY,
                         "ModoInterface" INTEGER NOT NULL,
+                        "ExibirBlocosProdutos" INTEGER NOT NULL DEFAULT 1,
+                        "ExibirCategorias" INTEGER NOT NULL DEFAULT 1,
                         "CreatedAt" TEXT NOT NULL,
                         "UpdatedAt" TEXT NOT NULL,
                         "DeletedAt" TEXT NULL,
@@ -565,6 +698,9 @@ public static class DependencyInjection
                     connection,
                     """CREATE INDEX "IX_Configuracoes_SyncStatus" ON "Configuracoes" ("SyncStatus");""");
             }
+
+            await AddColumnIfMissingAsync(connection, "Configuracoes", "ExibirBlocosProdutos", "INTEGER NOT NULL DEFAULT 1");
+            await AddColumnIfMissingAsync(connection, "Configuracoes", "ExibirCategorias", "INTEGER NOT NULL DEFAULT 1");
         }
         finally
         {
@@ -577,6 +713,48 @@ public static class DependencyInjection
 
         db.Add(Configuracao.Criar());
         await db.SaveChangesAsync();
+    }
+
+    private static async Task MigrateInscricaoTerminalAsync(PosDbContext db)
+    {
+        var connection = db.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+        if (shouldClose)
+            await connection.OpenAsync();
+
+        try
+        {
+            if (await HasTableAsync(connection, "InscricoesTerminais"))
+            {
+                await AddColumnIfMissingAsync(connection, "InscricoesTerminais", "CatalogoLidoEm", "TEXT NULL");
+                if (!await HasColumnAsync(connection, "InscricoesTerminais", "CatalogoCursorReiniciado"))
+                {
+                    await ExecuteNonQueryAsync(connection, """UPDATE "InscricoesTerminais" SET "CatalogoLidoEm" = NULL;""");
+                    await AddColumnIfMissingAsync(connection, "InscricoesTerminais", "CatalogoCursorReiniciado", "INTEGER NOT NULL DEFAULT 1");
+                }
+
+                return;
+            }
+
+            await ExecuteNonQueryAsync(
+                connection,
+                """
+                CREATE TABLE "InscricoesTerminais" (
+                    "Id" TEXT NOT NULL CONSTRAINT "PK_InscricoesTerminais" PRIMARY KEY,
+                    "EnderecoApi" TEXT NOT NULL,
+                    "LojaId" TEXT NOT NULL,
+                    "TerminalId" TEXT NOT NULL,
+                    "SegredoProtegido" TEXT NOT NULL,
+                    "CatalogoLidoEm" TEXT NULL,
+                    "CatalogoCursorReiniciado" INTEGER NOT NULL DEFAULT 1
+                );
+                """);
+        }
+        finally
+        {
+            if (shouldClose)
+                await connection.CloseAsync();
+        }
     }
 
     private static async Task SeedAsync(PosDbContext db, IPasswordHasher hasher)

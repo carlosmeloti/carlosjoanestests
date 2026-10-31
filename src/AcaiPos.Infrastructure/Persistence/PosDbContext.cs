@@ -29,6 +29,7 @@ public sealed class PosDbContext : DbContext, IPosDbContext
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
     public DbSet<SyncOperation> SyncOperations => Set<SyncOperation>();
     public DbSet<SyncError> SyncErrors => Set<SyncError>();
+    public DbSet<InscricaoTerminal> InscricoesTerminais => Set<InscricaoTerminal>();
 
     IQueryable<User> IPosDbContext.Users => Users;
     IQueryable<Store> IPosDbContext.Stores => Stores;
@@ -49,6 +50,7 @@ public sealed class PosDbContext : DbContext, IPosDbContext
     IQueryable<AuditEntry> IPosDbContext.AuditEntries => AuditEntries;
     IQueryable<SyncOperation> IPosDbContext.SyncOperations => SyncOperations;
     IQueryable<SyncError> IPosDbContext.SyncErrors => SyncErrors;
+    IQueryable<InscricaoTerminal> IPosDbContext.InscricoesTerminais => InscricoesTerminais;
 
     public void LoadProductCategories(Product product)
         => Entry(product).Collection(p => p.Categories).Load();
@@ -68,6 +70,33 @@ public sealed class PosDbContext : DbContext, IPosDbContext
         var produtos = ChangeTracker.Entries<Product>().Where(entry => entry.State == EntityState.Modified).ToList();
         foreach (var entry in produtos)
             entry.Reload();
+    }
+
+    public void RecarregarCatalogoLocal()
+    {
+        RecarregarRastreados<Product>();
+        RecarregarRastreados<Category>();
+        RecarregarRastreados<FormaPagamento>();
+        foreach (var entry in ChangeTracker.Entries<ProductCategory>().ToList())
+            entry.State = EntityState.Detached;
+    }
+
+    private void RecarregarRastreados<T>() where T : class
+    {
+        foreach (var entry in ChangeTracker.Entries<T>().ToList())
+        {
+            if (entry.State == EntityState.Added)
+                continue;
+
+            try
+            {
+                entry.Reload();
+            }
+            catch (InvalidOperationException)
+            {
+                entry.State = EntityState.Detached;
+            }
+        }
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -5,6 +5,8 @@ using AcaiPos.Domain.Enums;
 
 namespace AcaiPos.Application.Services;
 
+public sealed record ExibicaoVenda(bool BlocosProdutos, bool Categorias);
+
 public sealed class ConfiguracaoService
 {
     private readonly IPosDbContext _db;
@@ -25,14 +27,37 @@ public sealed class ConfiguracaoService
         if (!Enum.IsDefined(modo))
             throw new DomainException("Modo de interface inválido.");
 
-        var config = _db.Configuracoes.FirstOrDefault(item => item.DeletedAt == null);
-        if (config is null)
-        {
-            config = Configuracao.Criar();
-            _db.Add(config);
-        }
-
+        var config = ObterOuCriar();
         config.DefinirModoInterface(modo);
         await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    public Task<ExibicaoVenda> ObterExibicaoVendaAsync()
+    {
+        var config = _db.Configuracoes.FirstOrDefault(item => item.DeletedAt == null);
+        return Task.FromResult(new ExibicaoVenda(
+            config?.ExibirBlocosProdutos ?? true,
+            config?.ExibirCategorias ?? true));
+    }
+
+    public async Task DefinirExibicaoVendaAsync(
+        bool blocosProdutos,
+        bool categorias,
+        CancellationToken cancellationToken = default)
+    {
+        var config = ObterOuCriar();
+        config.DefinirExibicaoVenda(blocosProdutos, categorias);
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private Configuracao ObterOuCriar()
+    {
+        var config = _db.Configuracoes.FirstOrDefault(item => item.DeletedAt == null);
+        if (config is not null)
+            return config;
+
+        config = Configuracao.Criar();
+        _db.Add(config);
+        return config;
     }
 }

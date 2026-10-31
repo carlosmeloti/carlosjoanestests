@@ -1,5 +1,6 @@
 using AcaiPos.Application.Abstractions;
 using AcaiPos.Application.Models;
+using AcaiPos.Application.Sync;
 using AcaiPos.Application.Tickets;
 using AcaiPos.Domain.Common;
 using AcaiPos.Domain.Enums;
@@ -88,12 +89,25 @@ public sealed class CatalogService
     private readonly IPosDbContext _db;
     private readonly ICurrentSession _session;
     private readonly IAuditService _audit;
+    private readonly IAvisoCatalogo _aviso;
+    private int _geracaoVista;
 
-    public CatalogService(IPosDbContext db, ICurrentSession session, IAuditService audit)
+    public CatalogService(IPosDbContext db, ICurrentSession session, IAuditService audit, IAvisoCatalogo aviso)
     {
         _db = db;
         _session = session;
         _audit = audit;
+        _aviso = aviso;
+    }
+
+    public void RecarregarAcompanhados()
+    {
+        var geracao = _aviso.Geracao;
+        if (geracao == _geracaoVista)
+            return;
+
+        _db.RecarregarCatalogoLocal();
+        _geracaoVista = geracao;
     }
 
     public Task<IReadOnlyList<CategoryDto>> GetActiveCategoriesAsync(CancellationToken cancellationToken = default)
@@ -227,6 +241,7 @@ public sealed class CatalogService
         CancellationToken cancellationToken = default)
     {
         EnsureCanManage();
+        RecusarCadastroMestre();
         EnsureUniqueCategoryName(request.Name);
 
         var category = Domain.Entities.Category.Create(request.Name, request.Description, request.SortOrder);
@@ -247,6 +262,7 @@ public sealed class CatalogService
         CancellationToken cancellationToken = default)
     {
         EnsureCanManage();
+        RecusarCadastroMestre();
 
         var category = _db.Categories.FirstOrDefault(c => c.Id == categoryId && c.DeletedAt == null)
             ?? throw new DomainException("Categoria não encontrada.");
@@ -264,6 +280,7 @@ public sealed class CatalogService
     public async Task DeactivateCategoryAsync(Guid categoryId, CancellationToken cancellationToken = default)
     {
         EnsureCanManage();
+        RecusarCadastroMestre();
 
         var category = _db.Categories.FirstOrDefault(c => c.Id == categoryId && c.DeletedAt == null)
             ?? throw new DomainException("Categoria não encontrada.");
@@ -286,6 +303,7 @@ public sealed class CatalogService
         CancellationToken cancellationToken = default)
     {
         EnsureCanManage();
+        RecusarCadastroMestre();
         var categoryIds = NormalizeCategoryIds(request.CategoryIds);
         EnsureCategoriesAssignable(categoryIds);
         EnsureUniqueSku(request.Sku);
@@ -347,6 +365,9 @@ public sealed class CatalogService
             ?? throw new DomainException("Produto não encontrado.");
 
         _db.LoadProductCategories(product);
+        if (CadastroCentral())
+            return await AtualizarPrecoOuEstoqueAsync(product, request, cancellationToken);
+
         EnsureCategoriesAssignable(categoryIds, product.CategoryIds.ToHashSet());
 
         var stockDelta = request.StockQuantity - product.StockQuantity;
@@ -393,6 +414,7 @@ public sealed class CatalogService
     public async Task DeactivateProductAsync(Guid productId, CancellationToken cancellationToken = default)
     {
         EnsureCanManage();
+        RecusarCadastroMestre();
 
         var product = _db.Products.FirstOrDefault(p => p.Id == productId && p.DeletedAt == null)
             ?? throw new DomainException("Produto não encontrado.");
@@ -520,6 +542,80 @@ public sealed class CatalogService
         }
 
         return result;
+    }
+
+    private async Task<ProductManageDto> AtualizarPrecoOuEstoqueAsync(
+        Domain.Entities.Product product,
+        SaveProductRequest request,
+        CancellationToken cancellationToken)
+    {
+        var categoryIds = product.CategoryIds.ToList();
+        if (!MesmoCadastroMestre(product, request, categoryIds))
+            throw new DomainException("O cadastro desta loja está na central. Altere o preço de venda ou o estoque.");
+
+        if (request.SalePrice != product.SalePrice)
+        {
+            product.DefinirPrecoVenda(request.SalePrice);
+            SyncOutbox.Enqueue(_db, SyncAggregateType.ProductPrice, product.Id, SyncOperationKind.Upsert);
+        }
+
+        var stockDelta = request.StockQuantity - product.StockQuantity;
+        if (stockDelta != 0)
+        {
+            var movement = Domain.Entities.StockMovement.Create(
+                product,
+                StockMovementType.Adjustment,
+                stockDelta,
+                "Ajuste manual no cadastro",
+                operatorId: _session.CurrentUser!.Id);
+            _db.Add(movement);
+            SyncOutbox.Enqueue(_db, SyncAggregateType.StockMovement, movement.Id, SyncOperationKind.Upsert);
+        }
+
+        await _audit.LogAsync("PRODUCT_UPDATE", "Product", product.Id, $"{product.Sku} — {product.Name}", cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+        var described = DescribeCategories(categoryIds);
+        return MapManageProduct(product, described.Ids, described.Names);
+    }
+
+    private static bool MesmoCadastroMestre(
+        Domain.Entities.Product product,
+        SaveProductRequest request,
+        IReadOnlyList<Guid> categoryIds)
+    {
+        var categorias = product.CategoryIds.OrderBy(id => id).ToArray();
+        var recebidas = categoryIds.OrderBy(id => id).ToArray();
+        return product.Name == request.Name.Trim()
+            && product.Sku == request.Sku.Trim().ToUpperInvariant()
+            && product.Barcode == (string.IsNullOrWhiteSpace(request.Barcode) ? null : request.Barcode.Trim())
+            && product.CostPrice == request.CostPrice
+            && product.UnitOfMeasure == (string.IsNullOrWhiteSpace(request.UnitOfMeasure) ? "UN" : request.UnitOfMeasure.Trim().ToUpperInvariant())
+            && product.IsActive == request.IsActive
+            && product.Ncm == DigitosCatalogo(request.Ncm)
+            && product.Cfop == DigitosCatalogo(request.Cfop)
+            && product.Origem == request.Origem
+            && product.Csosn == DigitosCatalogo(request.Csosn)
+            && product.Cest == (string.IsNullOrWhiteSpace(request.Cest) ? null : DigitosCatalogo(request.Cest))
+            && product.PisCst == DigitosCatalogo(request.PisCst)
+            && product.CofinsCst == DigitosCatalogo(request.CofinsCst)
+            && product.IbsCbsCst == DigitosCatalogo(request.IbsCbsCst)
+            && product.CClassTrib == DigitosCatalogo(request.CClassTrib)
+            && categorias.SequenceEqual(recebidas);
+    }
+
+    private static string DigitosCatalogo(string? texto)
+        => new((texto ?? string.Empty).Where(char.IsDigit).ToArray());
+
+    private bool CadastroCentral()
+    {
+        var inscricao = _db.InscricoesTerminais.FirstOrDefault();
+        return inscricao?.Completa == true;
+    }
+
+    private void RecusarCadastroMestre()
+    {
+        if (CadastroCentral())
+            throw new DomainException("O cadastro desta loja está na central.");
     }
 
     private void EnsureCanManage()
@@ -1671,6 +1767,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddSingleton<SaleService>();
         services.AddSingleton<NfceService>();
         services.AddSingleton<ConfiguracaoService>();
+        services.AddSingleton<InscricaoTerminalService>();
         services.AddSingleton<UserService>();
         services.AddSingleton<TicketService>();
         services.AddSingleton<IAuditService, AuditService>();

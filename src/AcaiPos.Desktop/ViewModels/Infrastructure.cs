@@ -14,13 +14,14 @@ public abstract class ObservableObject : INotifyPropertyChanged
     /// <summary>
     /// Atualiza o campo e dispara a notificação somente quando o valor mudou.
     /// </summary>
-    protected void SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    protected bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
-            return;
+            return false;
 
         field = value;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        return true;
     }
 
     /// <summary>

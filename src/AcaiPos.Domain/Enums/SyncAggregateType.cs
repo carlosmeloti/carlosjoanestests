@@ -5,5 +5,6 @@ public enum SyncAggregateType
     Sale = 0,
     CashRegister = 1,
     CashMovement = 2,
-    StockMovement = 3
+    StockMovement = 3,
+    ProductPrice = 4
 }

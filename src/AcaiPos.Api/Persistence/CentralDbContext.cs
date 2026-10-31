@@ -17,6 +17,10 @@ public sealed class CentralDbContext : DbContext
     public DbSet<CashRegister> CashRegisters => Set<CashRegister>();
     public DbSet<CashMovement> CashMovements => Set<CashMovement>();
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
+    public DbSet<Category> Categories => Set<Category>();
+    public DbSet<Product> Products => Set<Product>();
+    public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
+    public DbSet<FormaPagamento> FormasPagamento => Set<FormaPagamento>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -129,6 +133,63 @@ public sealed class CentralDbContext : DbContext
             builder.Property(x => x.Type).HasConversion<int>();
             builder.Property(x => x.SyncStatus).HasConversion<int>();
             builder.Ignore(x => x.Product);
+        });
+
+        modelBuilder.Entity<Category>(builder =>
+        {
+            builder.ToTable("Categories");
+            builder.Property(x => x.Id).ValueGeneratedNever();
+            builder.Property<Guid>("LojaId").IsRequired();
+            builder.Property(x => x.Name).HasMaxLength(80).IsRequired();
+            builder.Property(x => x.Description).HasMaxLength(250);
+            builder.Property(x => x.SyncStatus).HasConversion<int>();
+            builder.HasIndex("LojaId", nameof(Category.Name)).IsUnique();
+        });
+
+        modelBuilder.Entity<Product>(builder =>
+        {
+            builder.ToTable("Products");
+            builder.Property(x => x.Id).ValueGeneratedNever();
+            builder.Property<Guid>("LojaId").IsRequired();
+            builder.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            builder.Property(x => x.Sku).HasMaxLength(40).IsRequired();
+            builder.Property(x => x.Barcode).HasMaxLength(60);
+            builder.Property(x => x.SalePrice).HasPrecision(18, 2);
+            builder.Property(x => x.CostPrice).HasPrecision(18, 2);
+            builder.Property(x => x.StockQuantity).HasPrecision(18, 3);
+            builder.Property(x => x.UnitOfMeasure).HasMaxLength(10).IsRequired();
+            builder.Property(x => x.Ncm).HasMaxLength(8).IsRequired();
+            builder.Property(x => x.Cfop).HasMaxLength(4).IsRequired();
+            builder.Property(x => x.Csosn).HasMaxLength(3).IsRequired();
+            builder.Property(x => x.Cest).HasMaxLength(7);
+            builder.Property(x => x.PisCst).HasMaxLength(2).IsRequired();
+            builder.Property(x => x.CofinsCst).HasMaxLength(2).IsRequired();
+            builder.Property(x => x.IbsCbsCst).HasMaxLength(3).IsRequired();
+            builder.Property(x => x.CClassTrib).HasMaxLength(6).IsRequired();
+            builder.Property(x => x.SyncStatus).HasConversion<int>();
+            builder.HasIndex("LojaId", nameof(Product.Sku)).IsUnique();
+            builder.HasMany(x => x.Categories)
+                .WithOne()
+                .HasForeignKey(x => x.ProductId)
+                .OnDelete(DeleteBehavior.Cascade);
+            builder.Navigation(x => x.Categories).UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        modelBuilder.Entity<ProductCategory>(builder =>
+        {
+            builder.ToTable("ProductCategories");
+            builder.HasKey(x => new { x.ProductId, x.CategoryId });
+        });
+
+        modelBuilder.Entity<FormaPagamento>(builder =>
+        {
+            builder.ToTable("FormasPagamento");
+            builder.Property(x => x.Id).ValueGeneratedNever();
+            builder.Property<Guid>("LojaId").IsRequired();
+            builder.Property(x => x.Descricao).HasMaxLength(50).IsRequired();
+            builder.Property(x => x.CorRgbBotao).HasMaxLength(7).IsRequired();
+            builder.Property(x => x.CodigoTpag).HasMaxLength(2).IsRequired();
+            builder.HasIndex("LojaId", nameof(FormaPagamento.Descricao)).IsUnique();
         });
     }
 }

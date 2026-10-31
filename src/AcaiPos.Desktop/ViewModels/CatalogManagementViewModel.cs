@@ -11,6 +11,7 @@ namespace AcaiPos.Desktop.ViewModels;
 public sealed class CatalogManagementViewModel : ObservableObject
 {
     private readonly CatalogService _catalogService;
+    private readonly InscricaoTerminalService _inscricao;
     private readonly Action<string>? _notify;
     private readonly Func<Task>? _onCatalogChanged;
 
@@ -51,10 +52,12 @@ public sealed class CatalogManagementViewModel : ObservableObject
     /// </summary>
     public CatalogManagementViewModel(
         CatalogService catalogService,
+        InscricaoTerminalService inscricao,
         Action<string>? notify = null,
         Func<Task>? onCatalogChanged = null)
     {
         _catalogService = catalogService;
+        _inscricao = inscricao;
         _notify = notify;
         _onCatalogChanged = onCatalogChanged;
 
@@ -73,6 +76,12 @@ public sealed class CatalogManagementViewModel : ObservableObject
         SaveProductCommand = new RelayCommand(async _ => await SaveProductAsync());
         DeactivateProductCommand = new RelayCommand(async p => await DeactivateProductAsync(p as ProductManageDto));
     }
+
+    public bool CadastroMestreTravado { get; private set; }
+    public bool CadastroMestreLivre => !CadastroMestreTravado;
+    public string AvisoCadastro => CadastroMestreTravado
+        ? "Cadastro mestre na central. Neste terminal só o preço de venda e o estoque podem mudar."
+        : string.Empty;
 
     public ObservableCollection<CategoryManageDto> ManagedCategories { get; } = [];
     public ObservableCollection<CategoryManageDto> FilterCategoryOptions { get; } = [];
@@ -274,11 +283,35 @@ public sealed class CatalogManagementViewModel : ObservableObject
     /// </summary>
     public async Task LoadAsync()
     {
+        var atual = await _inscricao.ObterAsync();
+        CadastroMestreTravado = atual?.TemSegredo == true
+            && !string.IsNullOrWhiteSpace(atual.EnderecoApi)
+            && atual.LojaId != Guid.Empty
+            && atual.TerminalId != Guid.Empty;
+        RaisePropertyChanged(nameof(CadastroMestreTravado));
+        RaisePropertyChanged(nameof(CadastroMestreLivre));
+        RaisePropertyChanged(nameof(AvisoCadastro));
         await LoadCategoriesAsync();
         await LoadProductsAsync();
         ResetCategoryForm();
         ResetProductForm();
         EditorMessage = "Catálogo carregado.";
+    }
+
+    public async Task AtualizarListasAsync()
+    {
+        var editando = _editingProductId;
+        await LoadCategoriesAsync();
+        await LoadProductsAsync();
+        if (editando is not Guid id)
+            return;
+
+        var produto = ManagedProducts.FirstOrDefault(item => item.Id == id);
+        if (produto is null)
+            return;
+
+        ProductSalePrice = produto.SalePrice;
+        ProductStock = produto.StockQuantity;
     }
 
     /// <summary>

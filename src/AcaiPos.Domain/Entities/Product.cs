@@ -116,6 +116,15 @@ public class Product : AuditableEntity
         MarkUpdated();
     }
 
+    public void DefinirPrecoVenda(decimal salePrice)
+    {
+        if (salePrice < 0)
+            throw new DomainException("Preço de venda não pode ser negativo.");
+
+        SalePrice = decimal.Round(salePrice, 2);
+        MarkUpdated();
+    }
+
     public void DefinirDadosFiscais(
         string? ncm,
         string? cfop,
@@ -201,6 +210,12 @@ public class Product : AuditableEntity
             if (_categories.All(link => link.CategoryId != id))
                 _categories.Add(ProductCategory.Create(Id, id));
         }
+    }
+
+    public void RedefinirCategorias(IReadOnlyCollection<Guid> categoryIds)
+    {
+        _categories.Clear();
+        SetCategories(categoryIds);
     }
 
     public void AdjustStock(decimal quantityDelta)

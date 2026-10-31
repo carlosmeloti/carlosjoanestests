@@ -81,7 +81,7 @@ public sealed record CartItemDto(
     decimal Subtotal);
 
 public sealed record PaymentDraftDto(
-    int FormaPagamentoId,
+    Guid FormaPagamentoId,
     string Descricao,
     bool CalculaTroco,
     decimal Amount,
@@ -159,7 +159,7 @@ public sealed record SaleHistoryTotalsDto(
 public sealed record OperatorOptionDto(Guid Id, string Name);
 
 public sealed record FormaPagamentoDto(
-    int Id,
+    Guid Id,
     string Descricao,
     bool CalculaTroco,
     bool IsParcela,

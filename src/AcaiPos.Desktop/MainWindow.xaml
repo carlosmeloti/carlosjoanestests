@@ -58,7 +58,7 @@
                                  FontSize="28"
                                  MaxLength="8"/>
 
-                        <UniformGrid Columns="3" Margin="0,18,0,0">
+                        <UniformGrid Columns="4" Margin="0,18,0,0">
                             <Button Style="{StaticResource PinButton}" Content="1" Command="{Binding AppendPinCommand}" CommandParameter="1"/>
                             <Button Style="{StaticResource PinButton}" Content="2" Command="{Binding AppendPinCommand}" CommandParameter="2"/>
                             <Button Style="{StaticResource PinButton}" Content="3" Command="{Binding AppendPinCommand}" CommandParameter="3"/>
@@ -68,13 +68,11 @@
                             <Button Style="{StaticResource PinButton}" Content="7" Command="{Binding AppendPinCommand}" CommandParameter="7"/>
                             <Button Style="{StaticResource PinButton}" Content="8" Command="{Binding AppendPinCommand}" CommandParameter="8"/>
                             <Button Style="{StaticResource PinButton}" Content="9" Command="{Binding AppendPinCommand}" CommandParameter="9"/>
-                            <Button Style="{StaticResource PinButton}" Content="C" Command="{Binding ClearPinCommand}"/>
                             <Button Style="{StaticResource PinButton}" Content="0" Command="{Binding AppendPinCommand}" CommandParameter="0"/>
-                            <Button Style="{StaticResource PinButton}" Content="⌫" Command="{Binding BackspacePinCommand}"/>
+                            <Button Style="{StaticResource PinButton}" Content="×" Command="{Binding BackspacePinCommand}"/>
+                            <Button Content="Enter" Style="{StaticResource PrimaryTouchButton}" Height="72" Margin="6" Padding="4,0" FontSize="16"
+                                    Command="{Binding LoginCommand}"/>
                         </UniformGrid>
-
-                        <Button Content="ENTRAR" Style="{StaticResource PrimaryTouchButton}" Height="64" Margin="0,18,0,0"
-                                Command="{Binding LoginCommand}"/>
 
                         <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource MutedText}" Margin="0,16,0,0" TextWrapping="Wrap"/>
                     </StackPanel>
@@ -462,7 +460,8 @@
                         <Button Grid.Column="1" Content="Buscar" Style="{StaticResource TouchButton}" Width="120" Command="{Binding SearchOrBarcodeCommand}"/>
                     </Grid>
 
-                    <ItemsControl Grid.Row="1" ItemsSource="{Binding Categories}" Margin="0,0,0,12">
+                    <ItemsControl Grid.Row="1" ItemsSource="{Binding Categories}" Margin="0,0,0,12"
+                                  Visibility="{Binding CategoryCarouselVisibility}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <WrapPanel/>
@@ -491,7 +490,8 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
+                                  Visibility="{Binding ProductBlocksVisibility}">
                         <ItemsControl ItemsSource="{Binding Products}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -684,6 +684,7 @@
                                                             Command="{Binding DataContext.EditProductCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                             CommandParameter="{Binding}"/>
                                                     <Button Content="Desativar" Style="{StaticResource TouchButton}" Padding="12,8"
+                                                            IsEnabled="{Binding DataContext.CadastroMestreLivre, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                             Command="{Binding DataContext.DeactivateProductCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                             CommandParameter="{Binding}"/>
                                                 </StackPanel>
@@ -699,11 +700,14 @@
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel>
                                 <TextBlock Text="{Binding ProductEditorTitle}" Style="{StaticResource TitleText}" FontSize="24"/>
+                                <TextBlock Text="{Binding AvisoCadastro}" Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,8,0,0"/>
                                 <Button Content="Novo produto" Style="{StaticResource GhostTouchButton}" Margin="0,12,0,16" HorizontalAlignment="Left"
+                                        IsEnabled="{Binding CadastroMestreLivre}"
                                         Command="{Binding NewProductCommand}"/>
 
                                 <TextBlock Text="Nome" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
                                 <TextBox Text="{Binding ProductName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                         IsReadOnly="{Binding CadastroMestreTravado}"
                                          behaviors:AlphaKeypad.IsEnabled="True"/>
 
                                 <Grid Margin="0,12,0,0">
@@ -714,11 +718,13 @@
                                     <StackPanel Margin="0,0,6,0">
                                         <TextBlock Text="SKU" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
                                         <TextBox Text="{Binding ProductSku, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                                 IsReadOnly="{Binding CadastroMestreTravado}"
                                                  behaviors:AlphaKeypad.IsEnabled="True"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Margin="6,0,0,0">
                                         <TextBlock Text="Cód. barras" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
                                         <TextBox Text="{Binding ProductBarcode, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                                 IsReadOnly="{Binding CadastroMestreTravado}"
                                                  behaviors:NumericKeypad.IsEnabled="True"
                                                  behaviors:NumericKeypad.AllowDecimal="False"/>
                                     </StackPanel>
@@ -731,6 +737,7 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <CheckBox Content="{Binding Name}"
+                                                              IsEnabled="{Binding DataContext.CadastroMestreLivre, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                               IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
                                                               Style="{StaticResource FieldCheckBox}"/>
                                                 </DataTemplate>
@@ -752,6 +759,7 @@
                                     <StackPanel Grid.Column="1" Margin="6,0,0,0">
                                         <TextBlock Text="Custo" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
                                         <TextBox Text="{Binding ProductCostPrice, UpdateSourceTrigger=LostFocus, StringFormat=N2, TargetNullValue=''}" Style="{StaticResource FieldTextBox}"
+                                                 IsReadOnly="{Binding CadastroMestreTravado}"
                                                  behaviors:NumericKeypad.IsEnabled="True"/>
                                     </StackPanel>
                                 </Grid>
@@ -769,6 +777,7 @@
                                     <StackPanel Grid.Column="1" Margin="6,0,0,0">
                                         <TextBlock Text="Unidade" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
                                         <TextBox Text="{Binding ProductUnit, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                                 IsReadOnly="{Binding CadastroMestreTravado}"
                                                  behaviors:AlphaKeypad.IsEnabled="True"/>
                                     </StackPanel>
                                 </Grid>
@@ -782,12 +791,14 @@
                                     <StackPanel Margin="0,0,6,0">
                                         <TextBlock Text="NCM" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
                                         <TextBox Text="{Binding ProductNcm, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                                 IsReadOnly="{Binding CadastroMestreTravado}"
                                                  behaviors:NumericKeypad.IsEnabled="True"
                                                  behaviors:NumericKeypad.AllowDecimal="False"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Margin="6,0,0,0">
                                         <TextBlock Text="CFOP" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
                                         <TextBox Text="{Binding ProductCfop, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                                 IsReadOnly="{Binding CadastroMestreTravado}"
                                                  behaviors:NumericKeypad.IsEnabled="True"
                                                  behaviors:NumericKeypad.AllowDecimal="False"/>
                                     </StackPanel>
@@ -801,18 +812,21 @@
                                     <StackPanel Margin="0,0,6,0">
                                         <TextBlock Text="Origem" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
                                         <TextBox Text="{Binding ProductOrigem, UpdateSourceTrigger=LostFocus}" Style="{StaticResource FieldTextBox}"
+                                                 IsReadOnly="{Binding CadastroMestreTravado}"
                                                  behaviors:NumericKeypad.IsEnabled="True"
                                                  behaviors:NumericKeypad.AllowDecimal="False"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Margin="6,0">
                                         <TextBlock Text="CSOSN" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
                                         <TextBox Text="{Binding ProductCsosn, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                                 IsReadOnly="{Binding CadastroMestreTravado}"
                                                  behaviors:NumericKeypad.IsEnabled="True"
                                                  behaviors:NumericKeypad.AllowDecimal="False"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="2" Margin="6,0,0,0">
                                         <TextBlock Text="CEST" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
                                         <TextBox Text="{Binding ProductCest, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                                 IsReadOnly="{Binding CadastroMestreTravado}"
                                                  behaviors:NumericKeypad.IsEnabled="True"
                                                  behaviors:NumericKeypad.AllowDecimal="False"/>
                                     </StackPanel>
@@ -825,12 +839,14 @@
                                     <StackPanel Margin="0,0,6,0">
                                         <TextBlock Text="CST PIS" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
                                         <TextBox Text="{Binding ProductPisCst, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                                 IsReadOnly="{Binding CadastroMestreTravado}"
                                                  behaviors:NumericKeypad.IsEnabled="True"
                                                  behaviors:NumericKeypad.AllowDecimal="False"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Margin="6,0,0,0">
                                         <TextBlock Text="CST COFINS" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
                                         <TextBox Text="{Binding ProductCofinsCst, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                                 IsReadOnly="{Binding CadastroMestreTravado}"
                                                  behaviors:NumericKeypad.IsEnabled="True"
                                                  behaviors:NumericKeypad.AllowDecimal="False"/>
                                     </StackPanel>
@@ -843,18 +859,21 @@
                                     <StackPanel Margin="0,0,6,0">
                                         <TextBlock Text="CST IBS/CBS" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
                                         <TextBox Text="{Binding ProductIbsCbsCst, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                                 IsReadOnly="{Binding CadastroMestreTravado}"
                                                  behaviors:NumericKeypad.IsEnabled="True"
                                                  behaviors:NumericKeypad.AllowDecimal="False"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Margin="6,0,0,0">
                                         <TextBlock Text="cClassTrib" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
                                         <TextBox Text="{Binding ProductCClassTrib, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                                 IsReadOnly="{Binding CadastroMestreTravado}"
                                                  behaviors:NumericKeypad.IsEnabled="True"
                                                  behaviors:NumericKeypad.AllowDecimal="False"/>
                                     </StackPanel>
                                 </Grid>
 
-                                <CheckBox Content="Produto ativo" Style="{StaticResource FieldCheckBox}" IsChecked="{Binding ProductIsActive}" Margin="0,12,0,0"/>
+                                <CheckBox Content="Produto ativo" Style="{StaticResource FieldCheckBox}" IsChecked="{Binding ProductIsActive}"
+                                          IsEnabled="{Binding CadastroMestreLivre}" Margin="0,12,0,0"/>
 
                                 <Button Content="SALVAR PRODUTO" Style="{StaticResource PrimaryTouchButton}" Height="56" Margin="0,20,0,0"
                                         Command="{Binding SaveProductCommand}"/>
@@ -886,6 +905,7 @@
                                                         Command="{Binding DataContext.EditCategoryCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                         CommandParameter="{Binding}"/>
                                                 <Button Content="Desativar" Style="{StaticResource TouchButton}" Padding="12,8"
+                                                        IsEnabled="{Binding DataContext.CadastroMestreLivre, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                         Command="{Binding DataContext.DeactivateCategoryCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                         CommandParameter="{Binding}"/>
                                             </StackPanel>
@@ -900,14 +920,17 @@
                         <StackPanel>
                             <TextBlock Text="{Binding CategoryEditorTitle}" Style="{StaticResource TitleText}" FontSize="24"/>
                             <Button Content="Nova categoria" Style="{StaticResource GhostTouchButton}" Margin="0,12,0,16" HorizontalAlignment="Left"
+                                    IsEnabled="{Binding CadastroMestreLivre}"
                                     Command="{Binding NewCategoryCommand}"/>
 
                             <TextBlock Text="Nome" Style="{StaticResource MutedText}" Margin="0,0,0,6"/>
                             <TextBox Text="{Binding CategoryName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                     IsReadOnly="{Binding CadastroMestreTravado}"
                                      behaviors:AlphaKeypad.IsEnabled="True"/>
 
                             <TextBlock Text="Descrição" Style="{StaticResource MutedText}" Margin="0,12,0,6"/>
                             <TextBox Text="{Binding CategoryDescription, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldTextBox}"
+                                     IsReadOnly="{Binding CadastroMestreTravado}"
                                      behaviors:AlphaKeypad.IsEnabled="True"
                                      Height="90" TextWrapping="Wrap" AcceptsReturn="True" VerticalContentAlignment="Top"/>
 
@@ -916,10 +939,13 @@
                                      behaviors:NumericKeypad.IsEnabled="True"
                                      behaviors:NumericKeypad.AllowDecimal="False"/>
 
-                            <CheckBox Content="Categoria ativa" Style="{StaticResource FieldCheckBox}" IsChecked="{Binding CategoryIsActive}"/>
-                            <CheckBox Content="Categoria padrão" Style="{StaticResource FieldCheckBox}" IsChecked="{Binding CategoryIsDefault}" Margin="0,8,0,0"/>
+                            <CheckBox Content="Categoria ativa" Style="{StaticResource FieldCheckBox}" IsChecked="{Binding CategoryIsActive}"
+                                      IsEnabled="{Binding CadastroMestreLivre}"/>
+                            <CheckBox Content="Categoria padrão" Style="{StaticResource FieldCheckBox}" IsChecked="{Binding CategoryIsDefault}"
+                                      IsEnabled="{Binding CadastroMestreLivre}" Margin="0,8,0,0"/>
 
                             <Button Content="SALVAR CATEGORIA" Style="{StaticResource PrimaryTouchButton}" Height="56" Margin="0,20,0,0"
+                                    IsEnabled="{Binding CadastroMestreLivre}"
                                     Command="{Binding SaveCategoryCommand}"/>
                         </StackPanel>
                     </Border>
@@ -1115,6 +1141,39 @@
                                                  IsChecked="{Binding Touchscreen, Mode=TwoWay}"/>
                                     <RadioButton GroupName="InterfaceHumana" Content="Dispositivos padrão" Style="{StaticResource SettingsRadio}"
                                                  IsChecked="{Binding DispositivosPadrao, Mode=TwoWay}"/>
+                                </StackPanel>
+                            </Expander>
+                            <Expander Style="{StaticResource SettingsSection}" IsExpanded="True">
+                                <Expander.Header>
+                                    <TextBlock Text="Tela de venda" FontSize="18" FontWeight="SemiBold"/>
+                                </Expander.Header>
+                                <StackPanel>
+                                    <CheckBox Content="Exibir produtos em blocos" Style="{StaticResource FieldCheckBox}"
+                                              IsChecked="{Binding ExibirBlocosProdutos, Mode=TwoWay}"/>
+                                    <TextBlock Text="Desmarque em um PDV de supermercado. O item entra pela busca ou pelo código de barras."
+                                               Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="28,4,0,8"/>
+                                    <CheckBox Content="Exibir categorias" Style="{StaticResource FieldCheckBox}"
+                                              IsChecked="{Binding ExibirCategorias, Mode=TwoWay}"/>
+                                    <TextBlock Text="Desmarque para ocultar o carrossel. A busca passa a considerar todo o catálogo."
+                                               Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="28,4,0,0"/>
+                                </StackPanel>
+                            </Expander>
+                            <Expander Style="{StaticResource SettingsSection}" IsExpanded="True">
+                                <Expander.Header>
+                                    <TextBlock Text="Sincronização" FontSize="18" FontWeight="SemiBold"/>
+                                </Expander.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Endereço da API" Style="{StaticResource MutedText}" Margin="0,0,0,4"/>
+                                    <TextBox Style="{StaticResource FieldTextBox}" Text="{Binding EnderecoApi, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBlock Text="Loja" Style="{StaticResource MutedText}" Margin="0,12,0,4"/>
+                                    <TextBox Style="{StaticResource FieldTextBox}" Text="{Binding LojaId, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBlock Text="Terminal" Style="{StaticResource MutedText}" Margin="0,12,0,4"/>
+                                    <TextBox Style="{StaticResource FieldTextBox}" Text="{Binding TerminalId, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBlock Text="Segredo" Style="{StaticResource MutedText}" Margin="0,12,0,4"/>
+                                    <TextBox Style="{StaticResource FieldTextBox}" Text="{Binding Segredo, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBlock Text="{Binding AvisoSegredo}" Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                                    <Button Content="Gravar inscrição" Style="{StaticResource PrimaryTouchButton}"
+                                            Command="{Binding SalvarInscricaoCommand}" HorizontalAlignment="Left" Margin="0,16,0,0"/>
                                 </StackPanel>
                             </Expander>
                         </StackPanel>

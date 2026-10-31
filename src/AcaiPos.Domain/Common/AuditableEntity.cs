@@ -26,6 +26,18 @@ public abstract class AuditableEntity : Entity
         SyncStatus = SyncStatus.Synced;
     }
 
+    public void MarcarFalhaSincronizacao()
+    {
+        SyncStatus = SyncStatus.Error;
+    }
+
+    public void AplicarTrilhaCentral(DateTime updatedAt, DateTime? deletedAt)
+    {
+        UpdatedAt = updatedAt;
+        DeletedAt = deletedAt;
+        SyncStatus = SyncStatus.Synced;
+    }
+
     protected void RestaurarTrilha(DateTime createdAt, DateTime updatedAt, DateTime? deletedAt, SyncStatus syncStatus)
     {
         CreatedAt = createdAt;

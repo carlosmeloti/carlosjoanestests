@@ -12,6 +12,8 @@ public abstract class Entity
         Id = id;
     }
 
+    public void AdotarId(Guid id) => DefinirId(id);
+
     public override bool Equals(object? obj)
     {
         if (obj is not Entity other)

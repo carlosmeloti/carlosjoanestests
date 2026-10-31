@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using AcaiPos.Api.Contratos;
+using AcaiPos.Api.Dtos;
 using AcaiPos.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -200,7 +200,7 @@ public class LoteTests : IClassFixture<ApiFactory>
                         new
                         {
                             Id = pagamentoId,
-                            FormaPagamentoId = 1,
+                            FormaPagamentoId = Guid.Parse("00000000-0000-4000-8000-000000000001"),
                             Descricao = "PIX",
                             Amount = total,
                             Status = "Confirmed"

@@ -1,33 +1,36 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using AcaiPos.Api.Contratos;
-using AcaiPos.Api.Persistence;
-using Microsoft.EntityFrameworkCore;
+using AcaiPos.Api.Dtos;
+using AcaiPos.Api.Repositories;
+using AcaiPos.Api.Seguranca;
 using Microsoft.IdentityModel.Tokens;
 
-namespace AcaiPos.Api.Seguranca;
+namespace AcaiPos.Api.Services;
 
-public sealed class TokenService
+public sealed class TokenService : ITokenService
 {
-    private readonly CentralDbContext _db;
+    private readonly ITerminalRepository _terminais;
     private readonly IConfiguration _configuration;
     private readonly ILogger<TokenService> _logger;
 
-    public TokenService(CentralDbContext db, IConfiguration configuration, ILogger<TokenService> logger)
+    public TokenService(
+        ITerminalRepository terminais,
+        IConfiguration configuration,
+        ILogger<TokenService> logger)
     {
-        _db = db;
+        _terminais = terminais;
         _configuration = configuration;
         _logger = logger;
     }
 
     public async Task<TokenResponse?> EmitirAsync(TokenRequest request, CancellationToken cancellationToken)
     {
-        var terminal = await _db.Terminals.FirstOrDefaultAsync(item => item.Id == request.TerminalId, cancellationToken);
+        var terminal = await _terminais.ObterPorIdAsync(request.TerminalId, cancellationToken);
         if (terminal is null)
             return null;
 
-        var hash = _db.Entry(terminal).Property<string?>("SegredoHash").CurrentValue;
+        var hash = _terminais.LerSegredoHash(terminal);
         if (string.IsNullOrEmpty(request.Segredo) || !SegredoHasher.Confere(request.Segredo, hash))
             return null;
 

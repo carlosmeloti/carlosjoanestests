@@ -1,20 +1,21 @@
-using AcaiPos.Api.Contratos;
-using AcaiPos.Api.Persistence;
+using AcaiPos.Api.Dtos;
+using AcaiPos.Api.Repositories;
 using AcaiPos.Domain.Common;
 using AcaiPos.Domain.Entities;
 using AcaiPos.Domain.Enums;
-using Microsoft.EntityFrameworkCore;
 
-namespace AcaiPos.Api.Lotes;
+namespace AcaiPos.Api.Services;
 
-public sealed class LoteService
+public sealed class LoteService : ILoteService
 {
-    private readonly CentralDbContext _db;
+    private readonly ILoteRepository _lotes;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<LoteService> _logger;
 
-    public LoteService(CentralDbContext db, ILogger<LoteService> logger)
+    public LoteService(ILoteRepository lotes, IUnitOfWork unitOfWork, ILogger<LoteService> logger)
     {
-        _db = db;
+        _lotes = lotes;
+        _unitOfWork = unitOfWork;
         _logger = logger;
     }
 
@@ -31,36 +32,35 @@ public sealed class LoteService
             return new LoteRecusado(recusa);
         }
 
-        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
         try
         {
             var aceitos = new List<ItemAceito>();
-            foreach (var venda in lote.Vendas)
+            await _unitOfWork.ExecutarAsync(async () =>
             {
-                await UpsertVendaAsync(venda, cancellationToken);
-                aceitos.Add(new ItemAceito(nameof(SyncAggregateType.Sale), venda.Id));
-            }
+                foreach (var venda in lote.Vendas)
+                {
+                    await UpsertVendaAsync(venda, cancellationToken);
+                    aceitos.Add(new ItemAceito(nameof(SyncAggregateType.Sale), venda.Id));
+                }
 
-            foreach (var caixa in lote.Caixas)
-            {
-                await UpsertCaixaAsync(caixa, cancellationToken);
-                aceitos.Add(new ItemAceito(nameof(SyncAggregateType.CashRegister), caixa.Id));
-            }
+                foreach (var caixa in lote.Caixas)
+                {
+                    await UpsertCaixaAsync(caixa, cancellationToken);
+                    aceitos.Add(new ItemAceito(nameof(SyncAggregateType.CashRegister), caixa.Id));
+                }
 
-            foreach (var movimento in lote.MovimentacoesCaixa)
-            {
-                await UpsertMovimentoCaixaAsync(movimento, cancellationToken);
-                aceitos.Add(new ItemAceito(nameof(SyncAggregateType.CashMovement), movimento.Id));
-            }
+                foreach (var movimento in lote.MovimentacoesCaixa)
+                {
+                    await UpsertMovimentoCaixaAsync(movimento, cancellationToken);
+                    aceitos.Add(new ItemAceito(nameof(SyncAggregateType.CashMovement), movimento.Id));
+                }
 
-            foreach (var movimento in lote.MovimentacoesEstoque)
-            {
-                await UpsertEstoqueAsync(movimento, cancellationToken);
-                aceitos.Add(new ItemAceito(nameof(SyncAggregateType.StockMovement), movimento.Id));
-            }
-
-            await _db.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
+                foreach (var movimento in lote.MovimentacoesEstoque)
+                {
+                    await UpsertEstoqueAsync(movimento, cancellationToken);
+                    aceitos.Add(new ItemAceito(nameof(SyncAggregateType.StockMovement), movimento.Id));
+                }
+            }, cancellationToken);
 
             foreach (var item in aceitos)
                 _logger.LogInformation(
@@ -73,7 +73,6 @@ public sealed class LoteService
         }
         catch (DomainException ex)
         {
-            await transaction.RollbackAsync(cancellationToken);
             _logger.LogWarning("Lote recusado do terminal {TerminalId}: {Mensagem}", terminalId, ex.Message);
             return new LoteRecusado(ex.Message);
         }
@@ -104,14 +103,10 @@ public sealed class LoteService
             pagamento.Status,
             pagamento.PaidAt ?? agora)).ToList();
 
-        var existente = await _db.Sales
-            .Include(item => item.Items)
-            .Include(item => item.Payments)
-            .FirstOrDefaultAsync(item => item.Id == venda.Id, cancellationToken);
-
+        var existente = await _lotes.ObterVendaAsync(venda.Id, cancellationToken);
         if (existente is null)
         {
-            _db.Add(Sale.Restaurar(
+            _lotes.Adicionar(Sale.Restaurar(
                 venda.Id,
                 venda.CashRegisterId,
                 venda.TerminalId,
@@ -162,10 +157,10 @@ public sealed class LoteService
     private async Task UpsertCaixaAsync(CaixaLote caixa, CancellationToken cancellationToken)
     {
         var agora = DateTime.UtcNow;
-        var existente = await _db.CashRegisters.FirstOrDefaultAsync(item => item.Id == caixa.Id, cancellationToken);
+        var existente = await _lotes.ObterCaixaAsync(caixa.Id, cancellationToken);
         if (existente is null)
         {
-            _db.Add(CashRegister.Restaurar(
+            _lotes.Adicionar(CashRegister.Restaurar(
                 caixa.Id,
                 caixa.TerminalId,
                 caixa.StoreId,
@@ -204,10 +199,10 @@ public sealed class LoteService
     private async Task UpsertMovimentoCaixaAsync(MovimentoCaixaLote movimento, CancellationToken cancellationToken)
     {
         var agora = DateTime.UtcNow;
-        var existente = await _db.CashMovements.FirstOrDefaultAsync(item => item.Id == movimento.Id, cancellationToken);
+        var existente = await _lotes.ObterMovimentoCaixaAsync(movimento.Id, cancellationToken);
         if (existente is null)
         {
-            _db.Add(CashMovement.Restaurar(
+            _lotes.Adicionar(CashMovement.Restaurar(
                 movimento.Id,
                 movimento.CashRegisterId,
                 movimento.TerminalId,
@@ -238,10 +233,10 @@ public sealed class LoteService
     private async Task UpsertEstoqueAsync(MovimentoEstoqueLote movimento, CancellationToken cancellationToken)
     {
         var agora = DateTime.UtcNow;
-        var existente = await _db.StockMovements.FirstOrDefaultAsync(item => item.Id == movimento.Id, cancellationToken);
+        var existente = await _lotes.ObterEstoqueAsync(movimento.Id, cancellationToken);
         if (existente is null)
         {
-            _db.Add(StockMovement.Restaurar(
+            _lotes.Adicionar(StockMovement.Restaurar(
                 movimento.Id,
                 movimento.ProductId,
                 movimento.SaleId,

@@ -320,14 +320,14 @@ public class Sale : AuditableEntity
     }
 
     public Payment AddPayment(
-        int formaPagamentoId,
+        Guid formaPagamentoId,
         string descricao,
         bool calculaTroco,
         decimal amount,
         decimal? amountReceived = null)
     {
         EnsureOpen();
-        if (formaPagamentoId <= 0)
+        if (formaPagamentoId == Guid.Empty)
             throw new DomainException("Forma de pagamento inválida.");
         if (string.IsNullOrWhiteSpace(descricao))
             throw new DomainException("Descrição da forma de pagamento é obrigatória.");

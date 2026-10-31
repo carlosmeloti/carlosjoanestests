@@ -250,7 +250,7 @@ internal sealed class FormaPagamentoConfiguration : IEntityTypeConfiguration<For
     {
         builder.ToTable("FormasPagamento");
         builder.HasKey(x => x.Id);
-        builder.Property(x => x.Id).ValueGeneratedOnAdd();
+        builder.Property(x => x.Id).ValueGeneratedNever();
         builder.Property(x => x.Descricao).HasMaxLength(50).IsRequired();
         builder.Property(x => x.CalculaTroco).HasDefaultValue(false);
         builder.Property(x => x.IsParcela).HasDefaultValue(false);
@@ -258,6 +258,7 @@ internal sealed class FormaPagamentoConfiguration : IEntityTypeConfiguration<For
         builder.Property(x => x.CorRgbBotao).HasMaxLength(7).IsRequired().HasDefaultValue(FormaPagamento.DefaultButtonColor);
         builder.Property(x => x.Ordem).IsRequired();
         builder.Property(x => x.CodigoTpag).HasMaxLength(2).IsRequired().HasDefaultValue("99");
+        builder.Property(x => x.UpdatedAt).IsRequired();
     }
 }
 
@@ -293,6 +294,8 @@ internal sealed class ConfiguracaoConfiguration : IEntityTypeConfiguration<Confi
         builder.ToTable("Configuracoes");
         builder.ConfigureAuditable();
         builder.Property(x => x.ModoInterface).HasConversion<int>().IsRequired();
+        builder.Property(x => x.ExibirBlocosProdutos).IsRequired();
+        builder.Property(x => x.ExibirCategorias).IsRequired();
     }
 }
 
@@ -331,6 +334,20 @@ internal sealed class SyncOperationConfiguration : IEntityTypeConfiguration<Sync
         builder.Property(x => x.UpdatedAt).IsRequired();
         builder.HasIndex(x => new { x.AggregateType, x.AggregateId }).IsUnique();
         builder.HasIndex(x => x.Status);
+    }
+}
+
+internal sealed class InscricaoTerminalConfiguration : IEntityTypeConfiguration<InscricaoTerminal>
+{
+    public void Configure(EntityTypeBuilder<InscricaoTerminal> builder)
+    {
+        builder.ToTable("InscricoesTerminais");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.EnderecoApi).HasMaxLength(300).IsRequired();
+        builder.Property(x => x.LojaId).IsRequired();
+        builder.Property(x => x.TerminalId).IsRequired();
+        builder.Property(x => x.SegredoProtegido).HasMaxLength(2000).IsRequired();
+        builder.Property(x => x.CatalogoLidoEm);
     }
 }
 

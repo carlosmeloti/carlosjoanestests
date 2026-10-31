@@ -2,9 +2,11 @@
 using System.Windows;
 using AcaiPos.Application.Abstractions;
 using AcaiPos.Application.Services;
+using AcaiPos.Application.Sync;
 using AcaiPos.Desktop.Behaviors;
 using AcaiPos.Desktop.Fiscal;
 using AcaiPos.Desktop.Printing;
+using AcaiPos.Desktop.Sync;
 using AcaiPos.Desktop.ViewModels;
 using AcaiPos.Domain.Enums;
 using AcaiPos.Infrastructure;
@@ -41,9 +43,13 @@ public partial class App : System.Windows.Application
                 {
                     services.AddApplication();
                     services.AddInfrastructure(dbPath);
+                    services.AddSingleton<AvisoCatalogo>();
+                    services.AddSingleton<IAvisoCatalogo>(sp => sp.GetRequiredService<AvisoCatalogo>());
                     services.AddSingleton<ClienteNfe>();
                     services.AddSingleton<IEmissorNfce, UnimakeEmissorNfce>();
                     services.AddSingleton<IProtecaoCertificado, DpapiProtecaoCertificado>();
+                    services.AddSingleton<ISyncTransporte, SyncHttpTransporte>();
+                    services.AddHostedService<CicloSincronizacao>();
                     services.AddSingleton<SpoolerTextPrinter>();
                     services.AddSingleton<ITicketPrinter, SpoolerTicketPrinter>();
                     services.AddSingleton<ICashMovementPrinter, CashMovementPrinter>();
@@ -53,6 +59,7 @@ public partial class App : System.Windows.Application
                 .Build();
 
             await _host.Services.InitializeDatabaseAsync();
+            await _host.StartAsync();
 
             var modo = await _host.Services.GetRequiredService<ConfiguracaoService>()
                 .ObterModoInterfaceAsync();
@@ -102,7 +109,12 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        _host?.Dispose();
+        if (_host is not null)
+        {
+            _host.StopAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
+            _host.Dispose();
+        }
+
         base.OnExit(e);
     }
 }

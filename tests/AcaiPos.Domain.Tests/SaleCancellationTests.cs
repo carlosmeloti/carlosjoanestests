@@ -12,7 +12,7 @@ public class SaleCancellationTests
         var product = Product.Create("Açaí 500ml", "ACAI-500", [category.Id], 25m, stockQuantity: 10);
         var sale = Sale.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "T20261005-0099");
         sale.AddItem(product, 2);
-        sale.AddPayment(1, "PIX", false, 50m);
+        sale.AddPayment(FormaPagamento.IdPix, "PIX", false, 50m);
         sale.Complete();
 
         var managerId = Guid.NewGuid();
@@ -31,7 +31,7 @@ public class SaleCancellationTests
         var product = Product.Create("Açaí 500ml", "ACAI-500", [category.Id], 25m);
         var sale = Sale.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "T20261005-0100");
         sale.AddItem(product, 1);
-        sale.AddPayment(1, "PIX", false, 25m);
+        sale.AddPayment(FormaPagamento.IdPix, "PIX", false, 25m);
         sale.Complete();
 
         Assert.Throws<AcaiPos.Domain.Common.DomainException>(() =>

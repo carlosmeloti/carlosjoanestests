@@ -50,11 +50,45 @@ public class SyncOperation : Entity
         return current;
     }
 
+    public const int LimiteTentativas = 5;
+
     public void MarkPending(SyncOperationKind kind)
     {
         Kind = kind;
         Status = SyncStatus.Pending;
         LastError = null;
+        AttemptCount = 0;
         UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void MarcarSincronizada()
+    {
+        Status = SyncStatus.Synced;
+        LastError = null;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void RegistrarFalha(string mensagem)
+    {
+        LastError = Mensagem(mensagem);
+        AttemptCount++;
+        Status = AttemptCount >= LimiteTentativas ? SyncStatus.Error : SyncStatus.Pending;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void RegistrarRecusa(string mensagem)
+    {
+        LastError = Mensagem(mensagem);
+        Status = SyncStatus.Error;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    private static string Mensagem(string mensagem)
+    {
+        if (string.IsNullOrWhiteSpace(mensagem))
+            throw new DomainException("Mensagem do erro de sincronização é obrigatória.");
+
+        var texto = mensagem.Trim();
+        return texto.Length <= 2000 ? texto : texto[..2000];
     }
 }

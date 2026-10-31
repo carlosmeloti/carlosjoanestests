@@ -27,10 +27,12 @@ public interface IPosDbContext
     IQueryable<AuditEntry> AuditEntries { get; }
     IQueryable<SyncOperation> SyncOperations { get; }
     IQueryable<SyncError> SyncErrors { get; }
+    IQueryable<InscricaoTerminal> InscricoesTerminais { get; }
 
     void Add<T>(T entity) where T : class;
     void Remove<T>(T entity) where T : class;
     void DescartarInclusoesPendentes();
+    void RecarregarCatalogoLocal();
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
 

@@ -7,6 +7,10 @@ public class Configuracao : AuditableEntity
 {
     public ModoInterface ModoInterface { get; private set; } = ModoInterface.Touchscreen;
 
+    public bool ExibirBlocosProdutos { get; private set; } = true;
+
+    public bool ExibirCategorias { get; private set; } = true;
+
     private Configuracao()
     {
     }
@@ -19,6 +23,13 @@ public class Configuracao : AuditableEntity
             throw new DomainException("Modo de interface inválido.");
 
         ModoInterface = modo;
+        MarkUpdated();
+    }
+
+    public void DefinirExibicaoVenda(bool blocosProdutos, bool categorias)
+    {
+        ExibirBlocosProdutos = blocosProdutos;
+        ExibirCategorias = categorias;
         MarkUpdated();
     }
 }

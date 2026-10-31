@@ -5,6 +5,7 @@ using System.Windows.Media;
 using AcaiPos.Application.Abstractions;
 using AcaiPos.Application.Models;
 using AcaiPos.Application.Services;
+using AcaiPos.Application.Sync;
 using AcaiPos.Domain.Common;
 using System.Windows.Media.Imaging;
 using AcaiPos.Desktop.Printing;
@@ -17,7 +18,7 @@ namespace AcaiPos.Desktop.ViewModels;
 /// </summary>
 public sealed class PaymentLineViewModel : ObservableObject
 {
-    public int FormaPagamentoId { get; init; }
+    public Guid FormaPagamentoId { get; init; }
     public string MethodLabel { get; init; } = string.Empty;
     public bool CalculaTroco { get; init; }
     public decimal Amount { get; init; }
@@ -49,7 +50,7 @@ public sealed class PaymentMethodButtonViewModel
 {
     public const string DefaultButtonColor = "#2A3642";
 
-    public int Id { get; init; }
+    public Guid Id { get; init; }
     public string Descricao { get; init; } = string.Empty;
     public bool CalculaTroco { get; init; }
     public bool IsParcela { get; init; }
@@ -148,11 +149,13 @@ public sealed class MainViewModel : ObservableObject
 {
     private readonly AuthService _authService;
     private readonly CatalogService _catalogService;
+    private readonly IAvisoCatalogo _avisoCatalogo;
     private readonly CashRegisterService _cashRegisterService;
     private readonly SaleService _saleService;
     private readonly TicketService _ticketService;
     private readonly UserService _userService;
     private readonly NfceService _nfceService;
+    private readonly ConfiguracaoService _configuracaoService;
     private readonly ICurrentSession _session;
 
     private bool _isAuthenticated;
@@ -170,6 +173,8 @@ public sealed class MainViewModel : ObservableObject
     private bool _suggestionsDismissed;
     private bool _suggestionsOpen;
     private int _suggestionIndex = -1;
+    private bool _exibirBlocosProdutos = true;
+    private bool _exibirCategorias = true;
     private Guid? _selectedCategoryId;
     private decimal _openingAmount = 100m;
     private decimal _countedAmount;
@@ -223,8 +228,10 @@ public sealed class MainViewModel : ObservableObject
         UserService userService,
         NfceService nfceService,
         ConfiguracaoService configuracaoService,
+        InscricaoTerminalService inscricaoService,
         ICurrentSession session,
-        ICashMovementPrinter cashMovementPrinter)
+        ICashMovementPrinter cashMovementPrinter,
+        IAvisoCatalogo avisoCatalogo)
     {
         _authService = authService;
         _catalogService = catalogService;
@@ -233,10 +240,14 @@ public sealed class MainViewModel : ObservableObject
         _ticketService = ticketService;
         _userService = userService;
         _nfceService = nfceService;
+        _configuracaoService = configuracaoService;
         _session = session;
+        _avisoCatalogo = avisoCatalogo;
+        _avisoCatalogo.Aplicado += AoCatalogoAplicado;
 
         Catalog = new CatalogManagementViewModel(
             catalogService,
+            inscricaoService,
             msg => StatusMessage = msg,
             async () => await LoadCatalogAsync());
 
@@ -250,7 +261,9 @@ public sealed class MainViewModel : ObservableObject
 
         Configuracoes = new ConfiguracoesViewModel(
             configuracaoService,
-            msg => StatusMessage = msg);
+            inscricaoService,
+            msg => StatusMessage = msg,
+            (blocos, categorias) => AplicarExibicaoVenda(blocos, categorias));
 
         History = new SalesHistoryViewModel(
             saleService,
@@ -486,6 +499,8 @@ public sealed class MainViewModel : ObservableObject
     public string WorkspaceVisibility => IsAuthenticated ? "Visible" : "Collapsed";
     public string CashStatusText => IsCashOpen ? "CAIXA ABERTO" : "CAIXA FECHADO";
     public string SaleScreenVisibility => CurrentScreen == "Sale" ? "Visible" : "Collapsed";
+    public string ProductBlocksVisibility => _exibirBlocosProdutos ? "Visible" : "Collapsed";
+    public string CategoryCarouselVisibility => _exibirCategorias ? "Visible" : "Collapsed";
     public string CatalogScreenVisibility => CurrentScreen == "Catalog" ? "Visible" : "Collapsed";
     public string FiscalScreenVisibility => CurrentScreen == "Fiscal" ? "Visible" : "Collapsed";
     public string SettingsScreenVisibility => CurrentScreen == "Settings" ? "Visible" : "Collapsed";
@@ -1421,10 +1436,11 @@ public sealed class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Carrega categorias ativas. Se houver uma padrão, ela e os produtos dela já vêm selecionados.
+    /// Carrega categorias ativas. Com o carrossel ligado e uma categoria padrão, ela já vem selecionada.
     /// </summary>
     private async Task LoadCatalogAsync()
     {
+        await LoadSaleLayoutAsync();
         Categories.Clear();
         Categories.Add(new CategoryChipViewModel { Id = Guid.Empty, Name = "Todos" });
         var categories = await _catalogService.GetActiveCategoriesAsync();
@@ -1432,10 +1448,80 @@ public sealed class MainViewModel : ObservableObject
             Categories.Add(new CategoryChipViewModel { Id = category.Id, Name = category.Name });
 
         var padrao = categories.FirstOrDefault(category => category.IsDefault);
-        _selectedCategoryId = padrao is null ? null : padrao.Id;
+        _selectedCategoryId = _exibirCategorias && padrao is not null ? padrao.Id : null;
         MarcarCategoriaSelecionada();
         await LoadProductsAsync();
         await LoadPaymentMethodsAsync();
+    }
+
+    private void AoCatalogoAplicado()
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+        {
+            _ = AtualizarCatalogoNaTelaAsync();
+            return;
+        }
+
+        dispatcher.InvokeAsync(AtualizarCatalogoNaTelaAsync);
+    }
+
+    private async Task AtualizarCatalogoNaTelaAsync()
+    {
+        _catalogService.RecarregarAcompanhados();
+        if (!IsAuthenticated)
+            return;
+
+        await AtualizarGradeVendaAsync();
+        if (CanManageCatalog)
+            await Catalog.AtualizarListasAsync();
+    }
+
+    private async Task AtualizarGradeVendaAsync()
+    {
+        var categorias = await _catalogService.GetActiveCategoriesAsync();
+        var selecionada = _selectedCategoryId;
+        Categories.Clear();
+        Categories.Add(new CategoryChipViewModel { Id = Guid.Empty, Name = "Todos" });
+        foreach (var category in categorias)
+            Categories.Add(new CategoryChipViewModel { Id = category.Id, Name = category.Name });
+
+        if (selecionada is Guid id && categorias.All(category => category.Id != id))
+            _selectedCategoryId = null;
+
+        MarcarCategoriaSelecionada();
+        await LoadProductsAsync();
+        await LoadPaymentMethodsAsync();
+    }
+
+    /// <summary>
+    /// Lê se a venda mostra os blocos de produto e o carrossel de categorias.
+    /// </summary>
+    private async Task LoadSaleLayoutAsync()
+    {
+        var exibicao = await _configuracaoService.ObterExibicaoVendaAsync();
+        AplicarExibicaoVenda(exibicao.BlocosProdutos, exibicao.Categorias, recarregarProdutos: false);
+    }
+
+    /// <summary>
+    /// Aplica a exibição da venda. Sem categorias, a busca deixa de filtrar pela categoria padrão.
+    /// </summary>
+    private void AplicarExibicaoVenda(bool blocosProdutos, bool categorias, bool recarregarProdutos = true)
+    {
+        var mudou = _exibirBlocosProdutos != blocosProdutos || _exibirCategorias != categorias;
+        _exibirBlocosProdutos = blocosProdutos;
+        _exibirCategorias = categorias;
+        if (!categorias)
+            _selectedCategoryId = null;
+
+        if (mudou)
+        {
+            RaisePropertyChanged(nameof(ProductBlocksVisibility));
+            RaisePropertyChanged(nameof(CategoryCarouselVisibility));
+        }
+
+        if (recarregarProdutos)
+            _ = ReloadProductsNowAsync();
     }
 
     /// <summary>
@@ -1472,7 +1558,8 @@ public sealed class MainViewModel : ObservableObject
     /// </summary>
     private async Task LoadProductsAsync()
     {
-        var items = await _catalogService.GetSellableProductsAsync(_selectedCategoryId, SearchText);
+        var categoria = _exibirCategorias ? _selectedCategoryId : null;
+        var items = await _catalogService.GetSellableProductsAsync(categoria, SearchText);
         var selected = _suggestionIndex;
         Products.Clear();
         foreach (var item in items)
